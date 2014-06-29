@@ -3,7 +3,7 @@
             [speclj.core :as spec #+cljs :include-macros #+cljs true]))
 
 (spec/describe
- "URI encoding"
+ "URI encoding/decoding"
 
  (let [de-string " !'()+~"
        en-string "%20%21%27%28%29%2B%7E"
@@ -17,3 +17,17 @@
    (spec/it
     "decodes"
     (spec/should= decoded-string de-string))))
+
+(spec/describe
+ "URI path encoding/decoding"
+
+ (let [path-str "/foo/bar"
+       path-vec ["foo" "bar"]]
+
+   (spec/it
+    "encodes"
+    (spec/should= (uri/encode-path path-vec) path-str))
+
+   (spec/it
+    "decode"
+    (spec/should= (uri/decode-path path-str) path-vec))))

@@ -1,4 +1,5 @@
-(ns domkm.silk.uri)
+(ns domkm.silk.uri
+  (:require [clojure.string :as str]))
 
 (defn ^String encode
   [^String s]
@@ -17,3 +18,20 @@
           str
           #+clj (java.net.URLDecoder/decode "UTF-8")
           #+cljs js/decodeURIComponent))
+
+(defn encode-path
+  "Takes a path seqable.
+  Returns a string of path segments encoded, joined with `/`, and prepended with `/`."
+  [path]
+  (->> path
+       (map encode)
+       (str/join "/")
+       (str "/")))
+
+(defn decode-path
+  "Takes a path string.
+  Returns a vector of decoded path segments."
+  [^String s]
+  (->> (str/split s #"/")
+       (remove str/blank?)
+       (mapv decode)))
