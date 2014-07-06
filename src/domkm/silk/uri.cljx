@@ -35,3 +35,22 @@
   (->> (str/split s #"/")
        (remove str/blank?)
        (mapv decode)))
+
+(defn encode-query
+  "Takes a query map.
+  Returns a string of query pairs encoded and joined."
+  [query]
+  (->> query
+       (map (fn [[k v]] (str (encode k) "=" (encode v))))
+       (str/join "&")))
+
+(defn decode-query
+  "Takes a query string.
+  Returns a map of decoded query pairs."
+  [^String s]
+  (->> (str/split s #"[&;]")
+       (reduce (fn [q pair]
+                 (let [[k v] (map decode (str/split pair #"="))]
+                   (assoc! q k v)))
+               (transient {}))
+       persistent!))

@@ -31,3 +31,17 @@
    (spec/it
     "decode"
     (spec/should= (uri/decode-path path-str) path-vec))))
+
+(spec/describe
+ "URI query encoding/decoding"
+
+ (let [query-str "foo=bar&baz=qux"
+       query-map {"foo" "bar", "baz" "qux"}]
+
+   (spec/it
+    "encodes"
+    (spec/should= (uri/encode-query query-map) query-str))
+
+   (spec/it
+    "decodes"
+    (spec/should= (uri/decode-query query-str) query-map))))
