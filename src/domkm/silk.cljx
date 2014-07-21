@@ -86,3 +86,97 @@
         query (or query (when query-string
                           (decode-query query-string)))]
     (map->URL (assoc m :path path :query query))))
+
+
+  ;;;; Pattern ;;;;
+
+(defprotocol Patternable
+  (-match [this that])
+  (-unmatch [this params]))
+
+(defn match [pattern x]
+  (-match pattern x))
+
+(defn unmatch [pattern params]
+  (-unmatch pattern params))
+
+(defn ^:private get-param [params param]
+  (if (contains? params param)
+    (get params param)
+    (-> (->> param
+             pr-str
+             (str "Missing parameter key: "))
+        #+clj Exception.
+        #+cljs js/Error.
+        throw)))
+
+(defn ^:private match-all [pairs]
+  (loop [pairs pairs
+         ret (transient {})]
+    (if-let [[x y] (first pairs)]
+      (when-let [mch (match x y)]
+        (recur (rest pairs)
+               (reduce-kv assoc! ret mch)))
+      (persistent! ret))))
+
+(defn ^:private match-all-map [patterns-map url-map]
+  (->> patterns-map
+       (map (fn [[k v]]
+              [v (get url-map k)]))
+       match-all))
+
+(defn ^:private unmatch-all-map [patterns-map params]
+  (->> patterns-map
+       (reduce-kv (fn [m k pat] (assoc! m k (unmatch pat params)))
+                  (transient {}))
+       persistent!))
+
+(extend-protocol Patternable
+
+  #+clj String
+  #+cljs string
+  (-match [this that]
+          (when (= this that)
+            {}))
+  (-unmatch [this _]
+            this)
+
+  Keyword
+  (-match [this that]
+          (when (string? that)
+            {this that}))
+  (-unmatch [this params]
+            (get-param params this))
+
+  PersistentVector
+  (-match [this that]
+          (when (== (count this)
+                    (count that))
+            (->> (interleave this that)
+                 (partition 2)
+                 match-all)))
+  (-unmatch [this params]
+            (mapv #(unmatch % params) this))
+
+  PersistentArrayMap
+  (-match [this that]
+          (match-all-map this that))
+  (-unmatch [this that]
+            (unmatch-all-map this that))
+
+  PersistentHashMap
+  (-match [this that]
+          (match-all-map this that))
+  (-unmatch [this that]
+            (unmatch-all-map this that)))
+
+(comment "TODO: built in leaf pattern constructors"
+  (defn regex [k re]) ; match the regex
+  (defn uuid [k]) ; match uuid and transform to/from
+  (defn integer [k]) ; match integer and transform to/from
+  (defn boolean [k]) ; match boolean and transform to/from
+  (defn keyword [k] [k1 k2]) ; match keyword and transform to/from
+  (defn composite [patternables]) ; match all patterns
+  (defn default [k patternable else]) ; if matchable is nil then return else. is this useful outside of query?
+  (defn alternatives) ; should this need a key?
+  )
