@@ -1,29 +1,24 @@
 (ns domkm.silk
-  (:require [clojure.string :as str]
-            [domkm.silk.util :as util])
-  #+clj
-  (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]))
+  (:require [clojure.string :as str])
+  #+clj (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]))
 
 
 ;;;; URL ;;;;
 
 (defn ^String encode
   [^String s]
-  (some-> s
-          str
-          #+clj (java.net.URLEncoder/encode "UTF-8")
-          #+cljs js/encodeURIComponent
-          #+clj (.replace "+" "%20")
-          #+cljs (.replace #"[!'()]" js/escape)
-          #+cljs (.replace "~" "%7E")
-          ))
+  (-> s
+      #+clj (java.net.URLEncoder/encode "UTF-8")
+      #+cljs js/encodeURIComponent
+      #+clj (str/replace #"\+" "%20")
+      #+cljs (str/replace #"[!'()]" js/escape)
+      #+cljs (str/replace #"~" "%7E")))
 
 (defn ^String decode
-  [^String s]
-  (some-> s
-          str
-          #+clj (java.net.URLDecoder/decode "UTF-8")
-          #+cljs js/decodeURIComponent))
+  [s]
+  (-> s
+      #+clj (java.net.URLDecoder/decode "UTF-8")
+      #+cljs js/decodeURIComponent))
 
 (defn encode-path
   "Takes a path seqable.
@@ -61,54 +56,29 @@
                (transient {}))
        persistent!))
 
-; user => {:name "name" :password "pw"}
-; host may need to have different implementations for IP, domains, etc.
-; path and query need tuple and record types.
 (defrecord URL [scheme user host port path query fragment] ; TODO: scheme, user, host, port, fragment
   Object
   (toString
    [this]
-   (str (when path
-          (encode-path path))
+   (str (encode-path path)
         (when query
           (str "?" (encode-query query))))))
-
-(def url-keys [:scheme :user :host :port :path :query :fragment])
-
-(defn url
-  "Takes a map of URL parts.
-  Returns a URL.
-  Will try to use `:path-string` and `:query-string`
-  if map does not contain `:path` or `:query` keys respectively."
-  [{:keys [path query path-string query-string] :as m}]
-  (let [path (or path (when path-string
-                        (decode-path path-string)))
-        query (or query (when query-string
-                          (decode-query query-string)))]
-    (map->URL (assoc m :path path :query query))))
 
 
   ;;;; Pattern ;;;;
 
-(defprotocol Patternable
+(defprotocol Pattern
   (-match [this that])
   (-unmatch [this params]))
+
+(defn pattern? [x]
+  (satisfies? Pattern x))
 
 (defn match [pattern x]
   (-match pattern x))
 
 (defn unmatch [pattern params]
   (-unmatch pattern params))
-
-(defn ^:private get-param [params param]
-  (if (contains? params param)
-    (get params param)
-    (-> (->> param
-             pr-str
-             (str "Missing parameter key: "))
-        #+clj Exception.
-        #+cljs js/Error.
-        throw)))
 
 (defn ^:private match-all [pairs]
   (loop [pairs pairs
@@ -131,7 +101,13 @@
                   (transient {}))
        persistent!))
 
-(extend-protocol Patternable
+(extend-protocol Pattern
+
+  nil
+  (-match [_ _]
+          {})
+  (-unmatch [_ _]
+            nil)
 
   #+clj String
   #+cljs string
@@ -143,10 +119,15 @@
 
   Keyword
   (-match [this that]
-          (when (string? that)
+          (when-not (nil? that)
             {this that}))
   (-unmatch [this params]
-            (get-param params this))
+            (if (contains? params this)
+              (get params this)
+              (->> {:parameters params
+                    :key this}
+                   (ex-info "missing parameter key")
+                   throw)))
 
   PersistentVector
   (-match [this that]
@@ -180,3 +161,71 @@
   (defn default [k patternable else]) ; if matchable is nil then return else. is this useful outside of query?
   (defn alternatives) ; should this need a key?
   )
+
+
+;;;; Route ;;;;
+
+(defrecord Route [id pattern]
+  Pattern
+  (-match [this url]
+          (when-let [params (match pattern url)]
+            (assoc params ::route this)))
+  (-unmatch [this params]
+            (->> ::route
+                 (dissoc params)
+                 (unmatch pattern)
+                 map->URL)))
+
+(defn route? [x]
+  (instance? Route x))
+
+(defn route
+  ([rte]
+   (if (route? rte)
+     rte
+     (apply route rte)))
+  ([id pattern]
+   (->Route id
+            (cond
+             (map? pattern) pattern
+             (vector? pattern) (let [[path query etc] pattern]
+                                 (->> (assoc etc :path path :query query)
+                                      (remove (fn [[k v]] (nil? v)))
+                                      (into {})))))))
+
+
+;;;; Routes ;;;;
+
+(deftype Routes [routes ids]
+  Pattern
+  (-match [this url]
+          (some (fn [route]
+                  (when-let [params (match route url)]
+                    (assoc params ::routes this ::url url)))
+                routes))
+  (-unmatch [this {{id :id} ::route :as params}]
+            (if-let [route (get ids id)]
+              (->> (dissoc params ::routes ::url)
+                   (unmatch route))
+              (->> {:routes this
+                    :parameters params}
+                   (ex-info "route not found")
+                   throw))))
+
+(defn routes? [x]
+  (instance? Routes x))
+
+(defn routes [rtes]
+  (let [rtes (-> (fn [memo rte]
+                   (if (routes? rte)
+                     (reduce conj! memo (.routes rte))
+                     (conj! memo (apply route rte))))
+                 (reduce (transient []) rtes)
+                 persistent!)
+        ids (-> (fn [memo {id :id :as rte}]
+                  (if (nil? id)
+                    memo
+                    (assoc! memo id rte)))
+                (reduce (transient {}) rtes)
+                persistent!)]
+    (->Routes rtes ids)))
