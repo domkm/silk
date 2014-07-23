@@ -1,6 +1,9 @@
 (ns domkm.silk
-  (:require [clojure.string :as str])
-  #+clj (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]))
+  (:refer-clojure :exclude [boolean])
+  (:require [#+clj clojure.core #+cljs cljs.core :as clj]
+            [clojure.string :as str])
+  #+clj (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
+                 [java.util UUID]))
 
 
 ;;;; URL ;;;;
@@ -80,6 +83,9 @@
 (defn unmatch [pattern params]
   (-unmatch pattern params))
 
+
+;;;; Native Patterns ;;;;
+
 (defn ^:private match-all [pairs]
   (loop [pairs pairs
          ret (transient {})]
@@ -151,19 +157,80 @@
   (-unmatch [this that]
             (unmatch-all-map this that)))
 
-(comment "TODO: built in leaf pattern constructors"
-  (defn regex [k re]) ; match the regex
-  (defn uuid [k]) ; match uuid and transform to/from
-  (defn integer [k]) ; match integer and transform to/from
-  (defn boolean [k]) ; match boolean and transform to/from
-  (defn keyword [k] [k1 k2]) ; match keyword and transform to/from
-  (defn composite [patternables]) ; match all patterns
-  (defn default [k patternable else]) ; if matchable is nil then return else. is this useful outside of query?
-  (defn alternatives) ; should this need a key?
+
+;;;; Extra Leaf Node Patterns ;;;;
+
+(defn regex [k re]
+  (reify
+    Pattern
+    (-match [_ s]
+            (when-let [param (re-find re s)]
+              {k param}))
+    (-unmatch [_ params]
+              (let [s (-unmatch k params)]
+                (if (re-find re s)
+                  s
+                  (->> {:parameters params
+                        :parameter s}
+                       (ex-info (str "parameter does not match regex: " re))
+                       throw))))))
+
+(defn integer [k]
+  (reify
+    Pattern
+    (-match [_ s]
+            (when-let [param (re-find #"^\d+$" s)]
+              #+clj {k (Integer/parseInt param)}
+              #+cljs {k (js/parseInt param 10)}))
+    (-unmatch [_ params]
+              (let [i (-unmatch k params)]
+                (if (integer? i)
+                  (str i)
+                  (->> {:parameters params
+                        :parameter i}
+                       (ex-info "parameter is not an integer")
+                       throw))))))
+
+(defn boolean [k]
+  (reify
+    Pattern
+    (-match [_ s]
+            (when-let [param (re-find #"^true$|^false$" s)]
+              {k (= param "true")}))
+    (-unmatch [_ params]
+              (let [b (-unmatch k params)]
+                (if (or (true? b)
+                        (false? b))
+                  (str b)
+                  (->> {:parameters params
+                        :parameter b}
+                       (ex-info "parameter is not a boolean")
+                       throw))))))
+
+(defn uuid [k]
+  (reify
+    Pattern
+    (-match [_ s]
+            (when-let [param (re-find #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" s)]
+              #+clj {k (UUID/fromString s)}
+              #+cljs {k (->UUID s)}))
+    (-unmatch [_ params]
+              (when-let [uuid (-unmatch k params)]
+                (if (instance? UUID uuid)
+                  (str uuid)
+                  (->> {:parameters params
+                        :parameter uuid}
+                       (ex-info "parameter is not a UUID")
+                       throw))))))
+
+(comment "TODO"
+  (defn composite [k patterns]) ; match/unmatch all patterns
+  (defn default [k pattern else]) ; match pattern or return else
+  (defn alternative [k patterns]) ; match/unmatch any of patterns
   )
 
 
-;;;; Route ;;;;
+;;;; Route Pattern ;;;;
 
 (defrecord Route [id pattern]
   Pattern
@@ -194,7 +261,7 @@
                                       (into {})))))))
 
 
-;;;; Routes ;;;;
+;;;; Routes Pattern ;;;;
 
 (deftype Routes [routes ids]
   Pattern
