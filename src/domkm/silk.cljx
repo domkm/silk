@@ -223,8 +223,22 @@
                        (ex-info "parameter is not a UUID")
                        throw))))))
 
+(defn composite [patterns]
+  (let [re (->> patterns
+                (map #(str "(" (if (string? %) % ".+") ")"))
+                str/join
+                re-pattern)]
+    (reify Pattern
+      (-match [_ s]
+              (when-let [m (re-find re s)]
+                (->> (rest m)
+                     (interleave patterns)
+                     (partition 2)
+                     match-all)))
+      (-unmatch [_ params]
+                (str/join (map #(unmatch % params) patterns))))))
+
 (comment "TODO"
-  (defn composite [k patterns]) ; match/unmatch all patterns
   (defn default [k pattern else]) ; match pattern or return else
   (defn alternative [k patterns]) ; match/unmatch any of patterns
   )

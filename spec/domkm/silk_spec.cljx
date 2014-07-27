@@ -186,6 +186,24 @@
                       (silk/unmatch (silk/uuid :uuid) {:uuid "uuid"}))))
 
  (spec/context
+  "silk/composite"
+  (spec/it
+   "matches successfully"
+   (spec/should= {:answer "42"}
+                 (silk/match (silk/composite ["foo" :answer "bar"]) "foo42bar")))
+  (spec/it
+   "matches unsuccessfully"
+   (spec/should-be-nil (silk/match (silk/composite ["foo" :answer "bar"]) "foop")))
+  (spec/it
+   "unmatches successfully"
+   (spec/should= "foo42bar"
+                 (silk/unmatch (silk/composite ["foo" :answer "bar"]) {:answer "42"})))
+  (spec/it
+   "unmatches unsuccessfully"
+   (spec/should-throw ExceptionInfo
+                      (silk/unmatch (silk/composite ["foo" :answer "bar"]) {}))))
+
+ (spec/context
   "silk/routes"
   (spec/with-all routes
     (silk/routes [[:id1 [nil nil {:ring {:request-method :method}}]]
