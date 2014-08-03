@@ -244,36 +244,6 @@
                           (silk/unmatch {:answer "foo"})))))
 
  (spec/context
-  "silk/request-method-pattern"
-  (spec/it
-   "matches successfully"
-   (spec/should= {} (silk/match (silk/request-method-pattern :get false) :get))
-   (spec/should= {} (silk/match (silk/request-method-pattern :get true) :get))
-   (spec/should= {} (silk/match (silk/request-method-pattern :get true) nil)))
-  (spec/it
-   "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/request-method-pattern :get false) :post))
-   (spec/should-be-nil (silk/match (silk/request-method-pattern :get true) :post)))
-  (spec/it
-   "unmatches successfully"
-   (spec/should= :get (silk/unmatch (silk/request-method-pattern :get false) {}))
-   (spec/should= nil (silk/unmatch (silk/request-method-pattern :get true) {}))))
-
- (spec/context
-  "silk/method and silk/?method"
-  (spec/with-all post-ptrn (silk/request-method-pattern :post false))
-  (spec/with-all ?post-ptrn (silk/request-method-pattern :post true))
-  (spec/with-all get-in-url (fn [m] (get-in m [:request :request-method])))
-  (spec/it
-   "associates request-method-pattern into URL map"
-   (spec/should= @post-ptrn
-                 (@get-in-url (silk/method :post [["a" "b"]])))
-   (spec/should= @?post-ptrn
-                 (@get-in-url (silk/?method :post [["a" "b"]])))
-   (spec/should= @?post-ptrn
-                 (@get-in-url (silk/?method :post {})))))
-
- (spec/context
   "silk/routes"
   (spec/with-all routes
     (silk/routes [[:id1 [nil nil {:ring {:request-method :method}}]]

@@ -313,33 +313,6 @@
     lp))
 
 
-;;;; Request Method Pattern ;;;;
-
-(defrecord RequestMethodPattern [method optional?]
-  Pattern
-  (-match [_ mthd]
-          (when (or (#+clj identical? #+cljs keyword-identical? method mthd)
-                    (and optional? (nil? mthd)))
-            {}))
-  (-unmatch [_ _]
-            (when-not optional?
-              method)))
-
-(defn request-method-pattern [method optional?]
-  {:pre [(#{:delete :get :head :options :post :put} method)]}
-  (->RequestMethodPattern method optional?))
-
-(defn method [mthd url-ptrn]
-  (assoc-in (url-pattern url-ptrn)
-            [:request :request-method]
-            (request-method-pattern mthd false)))
-
-(defn ?method [mthd url-ptrn]
-  (assoc-in (url-pattern url-ptrn)
-            [:request :request-method]
-            (request-method-pattern mthd true)))
-
-
 ;;;; Route Pattern ;;;;
 
 (defrecord Route [id pattern]
@@ -362,13 +335,7 @@
      rte
      (apply route rte)))
   ([id pattern]
-   (->Route id
-            (cond
-             (map? pattern) pattern
-             (vector? pattern) (let [[path query etc] pattern]
-                                 (->> (assoc etc :path path :query query)
-                                      (remove (fn [[k v]] (nil? v)))
-                                      (into {})))))))
+   (->Route id (url-pattern pattern))))
 
 
 ;;;; Routes Pattern ;;;;
