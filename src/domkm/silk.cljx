@@ -157,6 +157,14 @@
   (-unmatch [this that]
             (unmatch-all-map this that)))
 
+(defn url-pattern [x]
+  (cond
+   (map? x) x
+   (vector? x) (let [[path query etc] x]
+                 (->> (assoc etc :path path :query query)
+                      (remove (fn [[k v]] (nil? v)))
+                      (into {})))))
+
 
 ;;;; Leaf Pattern ;;;;
 
@@ -303,6 +311,33 @@
               (and m (unmatch lp m)))
             "default does not match")
     lp))
+
+
+;;;; Request Method Pattern ;;;;
+
+(defrecord RequestMethodPattern [method optional?]
+  Pattern
+  (-match [_ mthd]
+          (when (or (#+clj identical? #+cljs keyword-identical? method mthd)
+                    (and optional? (nil? mthd)))
+            {}))
+  (-unmatch [_ _]
+            (when-not optional?
+              method)))
+
+(defn request-method-pattern [method optional?]
+  {:pre [(#{:delete :get :head :options :post :put} method)]}
+  (->RequestMethodPattern method optional?))
+
+(defn method [mthd url-ptrn]
+  (assoc-in (url-pattern url-ptrn)
+            [:request :request-method]
+            (request-method-pattern mthd false)))
+
+(defn ?method [mthd url-ptrn]
+  (assoc-in (url-pattern url-ptrn)
+            [:request :request-method]
+            (request-method-pattern mthd true)))
 
 
 ;;;; Route Pattern ;;;;
