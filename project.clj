@@ -16,7 +16,7 @@
   :test-paths ["spec" "target/spec"]
 
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2234" :scope "provided"]]
+                 [org.clojure/clojurescript "0.0-2280" :scope "provided"]] ; "0.0-2277"
 
   :profiles {:dev {:dependencies [[speclj "3.0.2"]]}}
 
@@ -44,5 +44,5 @@
               :builds {:spec {:source-paths ["src" "target/src" "spec" "target/spec"]
                               :compiler {:output-to "target/js/spec.js"
                                          :optimizations :whitespace
-                                         :pretty-print  true}
+                                         :pretty-print true}
                               :notify-command ["phantomjs" "bin/speclj" "target/js/spec.js"]}}})
