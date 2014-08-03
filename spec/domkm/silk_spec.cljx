@@ -103,27 +103,6 @@
    (spec/should-be-nil (silk/match {"foo" :bar} {"not-foo" "blah"}))))
 
  (spec/context
-  "silk/regex"
-  (spec/with-all re #"^this$|^that$")
-  (spec/it
-   "matches successfully"
-   (spec/should= {:thing "this"}
-                 (silk/match (silk/regex :thing @re) "this")))
-  (spec/it
-   "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/regex :thing @re) "thiss")))
-  (spec/it
-   "unmatches successfully"
-   (spec/should= "that"
-                 (silk/unmatch (silk/regex :thing @re) {:thing "that"})))
-  (spec/it
-   "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/regex :thing @re) {}))
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/regex :thing @re) {:thing "blah"}))))
-
- (spec/context
   "silk/integer"
   (spec/it
    "matches successfully"
@@ -186,22 +165,83 @@
                       (silk/unmatch (silk/uuid :uuid) {:uuid "uuid"}))))
 
  (spec/context
+  "silk/alternative"
+  (spec/with-all alt (silk/alternative ["foo" "bar" "baz"]))
+  (spec/with-all k-alt (silk/alternative :key ["foo" "bar" "baz"]))
+  (spec/it
+   "matches successfully"
+   (spec/should= {} (silk/match @alt "foo"))
+   (spec/should= {} (silk/match @alt "bar"))
+   (spec/should= {:key "foo"} (silk/match @k-alt "foo"))
+   (spec/should= {:key "bar"} (silk/match @k-alt "bar")))
+  (spec/it
+   "matches unsuccessfully"
+   (spec/should-be-nil (silk/match @alt "qwerty"))
+   (spec/should-be-nil (silk/match @k-alt "qwerty")))
+  (spec/it
+   "unmatches successfully"
+   (spec/should= "foo" (silk/unmatch @alt {}))
+   (spec/should= "foo" (silk/unmatch @k-alt {:key "foo"})))
+  (spec/it
+   "unmatches unsuccessfully"
+   (spec/should-throw ExceptionInfo (silk/unmatch @k-alt {}))))
+
+ (spec/context
   "silk/composite"
   (spec/it
    "matches successfully"
    (spec/should= {:answer "42"}
-                 (silk/match (silk/composite ["foo" :answer "bar"]) "foo42bar")))
+                 (silk/match (silk/composite ["foo" :answer "bar"]) "foo42bar"))
+   (spec/should= {:answer 42}
+                 (silk/match (silk/composite ["foo" (silk/integer :answer) "bar"]) "foo42bar")))
   (spec/it
    "matches unsuccessfully"
    (spec/should-be-nil (silk/match (silk/composite ["foo" :answer "bar"]) "foop")))
   (spec/it
    "unmatches successfully"
    (spec/should= "foo42bar"
-                 (silk/unmatch (silk/composite ["foo" :answer "bar"]) {:answer "42"})))
+                 (silk/unmatch (silk/composite ["foo" :answer "bar"]) {:answer "42"}))
+   (spec/should= "foo42bar"
+                 (silk/unmatch (silk/composite ["foo" (silk/integer :answer) "bar"]) {:answer 42})))
   (spec/it
    "unmatches unsuccessfully"
    (spec/should-throw ExceptionInfo
                       (silk/unmatch (silk/composite ["foo" :answer "bar"]) {}))))
+
+ (spec/context
+  "silk/option"
+  (spec/it
+   "matches successfully"
+   (spec/should= {:answer 42}
+                 (silk/match (silk/option (silk/integer :answer) "42") nil))
+   (spec/should= {:answer 42}
+                 (silk/match (silk/option (silk/integer :answer) "42") "42"))
+   (spec/should= {:answer 100}
+                 (silk/match (silk/option (silk/integer :answer) "42") "100"))
+   (spec/should= {:answer "42"}
+                 (silk/match (silk/option :answer "42") nil)))
+  (spec/it
+   "matches unsuccessfully"
+   (-> (silk/integer :answer)
+       (silk/option "42")
+       (silk/match "foob")
+       spec/should-be-nil))
+  (spec/it
+   "unmatches successfully"
+   (spec/should= "42"
+                 (-> (silk/integer :answer)
+                     (silk/option "42")
+                     (silk/unmatch {:answer 42})))
+   (spec/should= "42"
+                 (-> (silk/integer :answer)
+                     (silk/option "42")
+                     (silk/unmatch {}))))
+  (spec/it
+   "unmatches unsuccessfully"
+   (spec/should-throw ExceptionInfo
+                      (-> (silk/integer :answer)
+                          (silk/option "42")
+                          (silk/unmatch {:answer "foo"})))))
 
  (spec/context
   "silk/routes"

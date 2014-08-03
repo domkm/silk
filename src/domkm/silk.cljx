@@ -158,90 +158,151 @@
             (unmatch-all-map this that)))
 
 
-;;;; Extra Leaf Node Patterns ;;;;
+;;;; Leaf Pattern ;;;;
 
-(defn regex [k re]
-  (reify
-    Pattern
-    (-match [_ s]
-            (when-let [param (re-find re s)]
-              {k param}))
-    (-unmatch [_ params]
-              (let [s (-unmatch k params)]
-                (if (re-find re s)
-                  s
-                  (->> {:parameters params
-                        :parameter s}
-                       (ex-info (str "parameter does not match regex: " re))
-                       throw))))))
+(def ^:private re-quote-char-map
+  (reduce #(assoc %1 %2 (str "\\" %2))
+          {}
+          "\\.*+|?()[]{}$^"))
+
+; TODO: add `clojure.string/re-quote-replacement` to ClojureScript
+(defn ^:private re-quote-replacement [s]
+  (str/escape s re-quote-char-map))
+
+(defrecord LeafPattern [param-key optional?
+                        regex validate
+                        extract insert
+                        deserialize serialize]
+  Pattern
+  (-match
+   [this string]
+   (let [param-val (if (and optional? (nil? string))
+                     (-> nil extract deserialize)
+                     (some->> string
+                              (re-find regex)
+                              extract
+                              deserialize))]
+     (when-not (nil? param-val)
+       (if (validate param-val)
+         (if (nil? param-key)
+           {}
+           {param-key param-val})
+         (-> "parameter value failed validation"
+             (ex-info {:pattern this
+                       :string string})
+             throw)))))
+  (-unmatch
+   [this params]
+   (cond
+    (nil? param-key) (insert nil)
+    (contains? params param-key) (let [param-val (get params param-key)]
+                                   (if (validate param-val)
+                                     (-> param-val serialize insert)
+                                     (-> "parameter value failed validation"
+                                         (ex-info {:pattern this
+                                                   :params params})
+                                         throw)))
+    :else (if optional?
+            (insert nil)
+            (-> "parameter key not found"
+                (ex-info {:pattern this
+                          :params params})
+                throw)))))
+
+(defn leaf-pattern? [x]
+  (instance? LeafPattern x))
+
+(defn leaf-pattern [x]
+  (cond
+   (leaf-pattern? x) x
+   (map? x) (-> {:regex #".+"
+                 :extract #(if (vector? %) (first %) %)
+                 :insert identity
+                 :deserialize identity
+                 :serialize identity
+                 :validate (constantly true)}
+                (merge x)
+                map->LeafPattern)
+   (string? x) (->> (str "^" (re-quote-replacement x) "$")
+                    re-pattern
+                    (hash-map :insert (constantly x) :regex)
+                    leaf-pattern)
+   (keyword? x) (leaf-pattern {:param-key x})))
+
+
+;;;; Extra Leaf Patterns ;;;;
 
 (defn integer [k]
-  (reify
-    Pattern
-    (-match [_ s]
-            (when-let [param (re-find #"^\d+$" s)]
-              #+clj {k (Integer/parseInt param)}
-              #+cljs {k (js/parseInt param 10)}))
-    (-unmatch [_ params]
-              (let [i (-unmatch k params)]
-                (if (integer? i)
-                  (str i)
-                  (->> {:parameters params
-                        :parameter i}
-                       (ex-info "parameter is not an integer")
-                       throw))))))
+  {:pre [(keyword? k)]}
+  (leaf-pattern
+   {:param-key k
+    :regex #"^\d+$"
+    :deserialize #+clj #(Integer/parseInt %) #+cljs #(js/parseInt % 10)
+    :serialize str
+    :validate integer?}))
 
 (defn boolean [k]
-  (reify
-    Pattern
-    (-match [_ s]
-            (when-let [param (re-find #"^true$|^false$" s)]
-              {k (= param "true")}))
-    (-unmatch [_ params]
-              (let [b (-unmatch k params)]
-                (if (or (true? b)
-                        (false? b))
-                  (str b)
-                  (->> {:parameters params
-                        :parameter b}
-                       (ex-info "parameter is not a boolean")
-                       throw))))))
+  {:pre [(keyword? k)]}
+  (leaf-pattern
+   {:param-key k
+    :regex #"^true$|^false$"
+    :deserialize #(= "true" %)
+    :serialize str
+    :validate #+clj #(instance? Boolean %) #+cljs #(identical? js/Boolean (type %))}))
 
 (defn uuid [k]
-  (reify
-    Pattern
-    (-match [_ s]
-            (when-let [param (re-find #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" s)]
-              #+clj {k (UUID/fromString s)}
-              #+cljs {k (->UUID s)}))
-    (-unmatch [_ params]
-              (when-let [uuid (-unmatch k params)]
-                (if (instance? UUID uuid)
-                  (str uuid)
-                  (->> {:parameters params
-                        :parameter uuid}
-                       (ex-info "parameter is not a UUID")
-                       throw))))))
+  {:pre [(keyword? k)]}
+  (leaf-pattern
+   {:param-key k
+    :regex #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    :deserialize #+clj #(UUID/fromString %) #+cljs ->UUID
+    :serialize str
+    :validate #(instance? UUID %)}))
 
-(defn composite [patterns]
-  (let [re (->> patterns
-                (map #(str "(" (if (string? %) % ".+") ")"))
-                str/join
-                re-pattern)]
-    (reify Pattern
-      (-match [_ s]
-              (when-let [m (re-find re s)]
-                (->> (rest m)
-                     (interleave patterns)
-                     (partition 2)
-                     match-all)))
-      (-unmatch [_ params]
-                (str/join (map #(unmatch % params) patterns))))))
+(defn alternative
+  ([alts]
+   {:pre [(every? string? alts)]} ; TODO: It would be nice if we could use any patterns, not just strings.
+   (->> alts
+        (map #(str "^" (re-quote-replacement %) "$"))
+        (str/join "|")
+        re-pattern
+        (hash-map :insert (-> alts first constantly) :regex)
+        leaf-pattern))
+  ([k alts]
+   {:pre [(keyword? k)]}
+   (assoc (alternative alts)
+     :param-key k
+     :insert identity
+     :validate (set alts))))
 
-(comment "TODO"
-  (defn default [k pattern else]) ; match pattern or return else
-  (defn alternative [k patterns]) ; match/unmatch any of patterns
-  )
+(defn composite
+  "Takes a seqable of strings and one LeafPattern or Keyword.
+  Returns a LeafPattern that matches a composite of the strings and LeafPattern."
+  [strs&lp]
+  {:pre [(->> strs&lp (remove string?) count (= 1))
+         (apply (some-fn keyword? leaf-pattern?) strs&lp)]}
+  (let [[a [_ z]] (split-with string? strs&lp)
+        [a-str z-str] (map str/join [a z])]
+    (merge (->> strs&lp
+                (remove string?)
+                first
+                leaf-pattern)
+           {:regex (re-pattern (str "^" a-str "(.+)" z-str "$"))
+            :extract second
+            :insert #(str a-str % z-str)})))
+
+(defn option [pattern default]
+  {:pre [(string? default)]}
+  (let [wrap-fn (fn [f x] #(if (nil? %) x (f %)))
+        lp (leaf-pattern pattern)
+        lp (assoc lp
+             :optional? true
+             :extract (wrap-fn (:extract lp) default)
+             :insert (wrap-fn (:insert lp) default))]
+    (assert (let [m (match lp default)]
+              (and m (unmatch lp m)))
+            "default does not match")
+    lp))
 
 
 ;;;; Route Pattern ;;;;
