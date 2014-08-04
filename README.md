@@ -1,4 +1,4 @@
-# Silk
+# Silk  [![Current Version](https://clojars.org/com.domkm/silk/latest-version.svg)](https://clojars.org/com.domkm/silk)
 
 ## Isomorphic Clojure[Script] Routing
 
