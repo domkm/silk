@@ -246,15 +246,16 @@
  (spec/context
   "silk/routes"
   (spec/with-all routes
-    (silk/routes [[:id1 [nil nil {:ring {:request-method :method}}]]
-                  [:id2 [["foo" "bar" :baz]]]
+    (silk/routes [[:id1 [nil nil {:request {:request-method :method}}]]
+                  (silk/routes [[:id2 [["foo" "bar" :baz]]]])
                   [:id3 [nil {"a" :b}]]]))
-  (spec/with-all clean-params #(dissoc % :domkm.silk/route :domkm.silk/routes :domkm.silk/url))
+  (spec/with-all clean-params
+    #(dissoc % :domkm.silk/routes :domkm.silk/url :domkm.silk/pattern :domkm.silk/key))
   (spec/it
    "matches successfully"
    (spec/should= {:method :get}
                  (@clean-params
-                  (silk/match @routes (silk/map->URL {:ring {:request-method :get}}))))
+                  (silk/match @routes (silk/map->URL {:request {:request-method :get}}))))
    (spec/should= {:baz "baz"}
                  (@clean-params
                   (silk/match @routes (silk/map->URL {:path ["foo" "bar" "baz"]}))))
@@ -267,7 +268,7 @@
   (spec/it
    "unmatches successfully"
    (spec/should= (silk/map->URL {:query {"a" "c"}})
-                 (silk/unmatch @routes {:domkm.silk/route {:id :id3} :b "c"})))
+                 (silk/unmatch @routes {:domkm.silk/key :id3 :b "c"})))
   (spec/it
    "unmatches unsuccessfully"
    (spec/should-throw ExceptionInfo

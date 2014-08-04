@@ -315,61 +315,68 @@
 
 ;;;; Route Pattern ;;;;
 
-(defrecord Route [id pattern]
+(deftype Route [key pattern]
   Pattern
   (-match [this url]
           (when-let [params (match pattern url)]
-            (assoc params ::route this)))
+            (assoc params ::key key ::pattern pattern)))
   (-unmatch [this params]
-            (->> ::route
-                 (dissoc params)
+            (->> (dissoc params ::key ::pattern)
                  (unmatch pattern)
-                 map->URL)))
+                 map->URL))
+  ; so much for portable code :'(
+  #+clj java.util.Map$Entry
+  #+clj (getKey [_] key)
+  #+clj (getValue [_] pattern)
+  #+cljs IMapEntry
+  #+cljs (-key [_] key)
+  #+cljs (-val [_] pattern))
 
 (defn route? [x]
   (instance? Route x))
 
-(defn route
-  ([rte]
-   (if (route? rte)
-     rte
-     (apply route rte)))
-  ([id pattern]
-   (->Route id (url-pattern pattern))))
+(defn route [x]
+  (if (route? x)
+    x
+    (let [[key pattern] x]
+      (->Route key (url-pattern pattern)))))
 
 
 ;;;; Routes Pattern ;;;;
 
-(deftype Routes [routes ids]
+(deftype Routes [routes-seq routes-map]
   Pattern
   (-match [this url]
           (some (fn [route]
                   (when-let [params (match route url)]
                     (assoc params ::routes this ::url url)))
-                routes))
-  (-unmatch [this {{id :id} ::route :as params}]
-            (if-let [route (get ids id)]
-              (->> (dissoc params ::routes ::url)
-                   (unmatch route))
-              (->> {:routes this
-                    :parameters params}
-                   (ex-info "route not found")
-                   throw))))
+                routes-seq))
+  (-unmatch [this {k ::key :as params}]
+            {:pre [(some? k)]}
+            (if-let [route (get routes-map k) ]
+              (unmatch route (dissoc params ::routes ::url))
+              (-> "route not found"
+                  (ex-info {:routes this
+                            :params params
+                            :key k})
+                  throw))))
 
 (defn routes? [x]
   (instance? Routes x))
 
 (defn routes [rtes]
-  (let [rtes (-> (fn [memo rte]
-                   (if (routes? rte)
-                     (reduce conj! memo (.routes rte))
-                     (conj! memo (apply route rte))))
-                 (reduce (transient []) rtes)
-                 persistent!)
-        ids (-> (fn [memo {id :id :as rte}]
-                  (if (nil? id)
-                    memo
-                    (assoc! memo id rte)))
-                (reduce (transient {}) rtes)
-                persistent!)]
-    (->Routes rtes ids)))
+  (if (routes? rtes)
+    rtes
+    (let [rtes-seq (mapcat #(if (routes? %)
+                              (.-routes-seq %)
+                              (-> % route list))
+                           rtes)
+          rtes-map (-> (fn [memo rte]
+                         (let [rte (route rte)
+                               k (key rte)]
+                           (if (nil? k)
+                             memo
+                             (assoc! memo k rte))))
+                       (reduce (transient {}) rtes-seq)
+                       persistent!)]
+      (->Routes rtes-seq rtes-map))))
