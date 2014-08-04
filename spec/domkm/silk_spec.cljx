@@ -285,4 +285,18 @@
   (spec/it
    "unmatches unsuccessfully"
    (spec/should-throw ExceptionInfo
-                      (silk/unmatch @routes {})))))
+                      (silk/unmatch @routes {})))
+  (spec/it
+   "arrives"
+   (spec/should= {:baz "baz"}
+                 (@clean-params
+                  (silk/arrive @routes "/foo/bar/baz")))
+   (spec/should= {:b "b"}
+                 (@clean-params
+                  (silk/arrive @routes "/?a=b"))))
+  (spec/it
+   "departs"
+   (spec/should= "/foo/bar/bloop"
+                 (silk/depart @routes :id2 {:baz "bloop"}))
+   (spec/should= "/?a=bloop"
+                 (silk/depart @routes :id3 {:b "bloop"})))))

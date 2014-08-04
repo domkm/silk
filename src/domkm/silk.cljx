@@ -393,3 +393,22 @@
                        (reduce (transient {}) rtes-seq)
                        persistent!)]
       (->Routes rtes-seq rtes-map))))
+
+(defn arrive
+  ([rtes x]
+   (arrive rtes x identity))
+  ([rtes x handler]
+   (->> x
+        url
+        (match rtes)
+        handler)))
+
+(defn depart
+  ([rtes k]
+   (depart rtes k {} str))
+  ([rtes k params]
+   (depart rtes k params str))
+  ([rtes k params handler]
+   (->> (assoc params ::key k)
+        (unmatch rtes)
+        handler)))
