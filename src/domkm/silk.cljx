@@ -36,9 +36,10 @@
   "Takes a path string.
   Returns a vector of decoded path segments."
   [^String s]
-  (->> (str/split s #"/")
-       (remove str/blank?)
-       (mapv decode)))
+  (when-not (str/blank? s)
+    (->> (str/split s #"/")
+         (remove str/blank?)
+         (mapv decode))))
 
 (defn encode-query
   "Takes a query map.
@@ -52,12 +53,13 @@
   "Takes a query string.
   Returns a map of decoded query pairs."
   [^String s]
-  (->> (str/split s #"[&;]")
-       (reduce (fn [q pair]
-                 (let [[k v] (map decode (str/split pair #"="))]
-                   (assoc! q k v)))
-               (transient {}))
-       persistent!))
+  (when-not (str/blank? s)
+    (->> (str/split s #"[&;]")
+         (reduce (fn [q pair]
+                   (let [[k v] (map decode (str/split pair #"="))]
+                     (assoc! q k v)))
+                 (transient {}))
+         persistent!)))
 
 (defrecord URL [scheme user host port path query fragment] ; TODO: scheme, user, host, port, fragment
   Object
@@ -66,6 +68,17 @@
    (str (encode-path path)
         (when query
           (str "?" (encode-query query))))))
+
+(defn url? [x]
+  (instance? URL x))
+
+(defn url [x]
+  (cond
+   (url? x) x
+   (string? x) (let [[p q] (str/split x #"\?")]
+                 (url {:path (-> p str decode-path)
+                       :query (-> q str decode-query)}))
+   (map? x) (map->URL x)))
 
 
   ;;;; Pattern ;;;;

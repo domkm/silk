@@ -42,7 +42,20 @@
    (spec/should= (silk/encode-query @query-map) @query-str))
   (spec/it
    "decodes"
-   (spec/should= (silk/decode-query @query-str) @query-map))))
+   (spec/should= (silk/decode-query @query-str) @query-map)))
+
+ (spec/context
+  "parsing"
+  (spec/it
+   "parses urls"
+   (spec/should= (silk/map->URL {:path ["a"]})
+                 (silk/url "/a"))
+   (spec/should= (silk/map->URL {:path ["a"]})
+                 (silk/url "/a?"))
+   (spec/should= (silk/map->URL {:path ["a"] :query {"b" "c"}})
+                 (silk/url "/a?b=c"))
+   (spec/should= (silk/map->URL {:query {"b" "c"}})
+                 (silk/url "?b=c")))))
 
 
 ;;;; Pattern ;;;;
