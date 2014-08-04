@@ -1,8 +1,8 @@
 (defproject com.domkm/silk "0.0.1-SNAPSHOT"
 
-  :description "FIXME: write description"
+  :description "Isomorphic Clojure & ClojureScript Routing"
 
-  :url "http://example.com/FIXME"
+  :url "https://github.com/domkm/silk"
 
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
