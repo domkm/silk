@@ -263,7 +263,7 @@
                   (silk/routes [[:id2 [["foo" "bar" :baz]]]])
                   [:id3 [nil {"a" :b}]]]))
   (spec/with-all clean-params
-    #(dissoc % :domkm.silk/routes :domkm.silk/url :domkm.silk/pattern :domkm.silk/key))
+    #(dissoc % :domkm.silk/routes :domkm.silk/url :domkm.silk/pattern :domkm.silk/name))
   (spec/it
    "matches successfully"
    (spec/should= {:method :get}
@@ -281,7 +281,7 @@
   (spec/it
    "unmatches successfully"
    (spec/should= (silk/map->URL {:query {"a" "c"}})
-                 (silk/unmatch @routes {:domkm.silk/key :id3 :b "c"})))
+                 (silk/unmatch @routes {:domkm.silk/name :id3 :b "c"})))
   (spec/it
    "unmatches unsuccessfully"
    (spec/should-throw ExceptionInfo

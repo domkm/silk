@@ -328,21 +328,21 @@
 
 ;;;; Route Pattern ;;;;
 
-(deftype Route [key pattern]
+(deftype Route [name pattern]
   Pattern
   (-match [this url]
           (when-let [params (match pattern url)]
-            (assoc params ::key key ::pattern pattern)))
+            (assoc params ::name name ::pattern pattern)))
   (-unmatch [this params]
-            (->> (dissoc params ::key ::pattern)
+            (->> (dissoc params ::name ::pattern)
                  (unmatch pattern)
-                 map->URL))
+                 url))
   ; so much for portable code :'(
   #+clj java.util.Map$Entry
-  #+clj (getKey [_] key)
+  #+clj (getKey [_] name)
   #+clj (getValue [_] pattern)
   #+cljs IMapEntry
-  #+cljs (-key [_] key)
+  #+cljs (-key [_] name)
   #+cljs (-val [_] pattern))
 
 (defn route? [x]
@@ -351,8 +351,8 @@
 (defn route [x]
   (if (route? x)
     x
-    (let [[key pattern] x]
-      (->Route key (url-pattern pattern)))))
+    (let [[nm ptrn] x]
+      (->Route nm (url-pattern ptrn)))))
 
 
 ;;;; Routes Pattern ;;;;
@@ -364,14 +364,14 @@
                   (when-let [params (match route url)]
                     (assoc params ::routes this ::url url)))
                 routes-seq))
-  (-unmatch [this {k ::key :as params}]
-            {:pre [(some? k)]}
-            (if-let [route (get routes-map k) ]
+  (-unmatch [this {nm ::name :as params}]
+            {:pre [(some? nm)]}
+            (if-let [route (get routes-map nm) ]
               (unmatch route (dissoc params ::routes ::url))
               (-> "route not found"
                   (ex-info {:routes this
                             :params params
-                            :key k})
+                            :name nm})
                   throw))))
 
 (defn routes? [x]
@@ -404,11 +404,11 @@
         handler)))
 
 (defn depart
-  ([rtes k]
-   (depart rtes k {} str))
-  ([rtes k params]
-   (depart rtes k params str))
-  ([rtes k params handler]
-   (->> (assoc params ::key k)
+  ([rtes nm]
+   (depart rtes nm {} str))
+  ([rtes nm params]
+   (depart rtes nm params str))
+  ([rtes nm params handler]
+   (->> (assoc params ::name nm)
         (unmatch rtes)
         handler)))

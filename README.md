@@ -54,7 +54,7 @@ This goal is not yet met. Well, it may be, but there are no benchmarks yet.
 
 ### Use
 
-Take a few minutes to learn Silk:
+##### Take a few minutes to learn Silk
 
 Patterns can be matched and unmatched with `domkm.silk/match` and `domkm.silk/unmatch` respectively.
 
@@ -117,27 +117,27 @@ Patterns can be data structures.
 (silk/match ["users" (silk/integer :id)] ["users" "42"])
 ;=> {:id 42}
 ```
-Routes are formed with 2-tuples. The first element is a route key and the second element is something that can be turned into a URL pattern.
+A route can be created with a 2-tuple. The first element is a route name and the second element is something that can be turned into a URL pattern.
 If the second element is a vector, the first and second elements are `assoc`iated into the third element under `:path` and `:query` keys respectively.
 If the second element is a map, it is left unchanged.
 
 ```clojure
 (silk/url-pattern [["i" "am" "a" "path"] {"i" "am" "a" "query"} {:scheme "https"}])
-;=> {:query {"i" "am", "a" "query"}, :path ["i" "am" "a" "path"], :scheme "https"}
+;=> {:path ["i" "am" "a" "path"], :query {"i" "am", "a" "query"}, :scheme "https"}
 
 (silk/url-pattern {:path ["i" "am" "a" "path"] :query {"i" "am" "a" "query"} :scheme "https"})
 ;=> {:path ["i" "am" "a" "path"], :query {"i" "am", "a" "query"}, :scheme "https"}
 
-(silk/route [:route-key [["users" :username]]])
+(silk/route [:route-name [["i" "am" "a" "path"] {"i" "am" "a" "query"} {:scheme "https"}]])
 ;=> #<Route domkm.silk.Route@6ebe4324>
 ```
 
 Routes are patterns.
 
 ```clojure
-(silk/match (silk/route [:route-key [["users" :username]]]) {:path ["users" "domkm"]})
-;=> {:username "domkm", :domkm.silk/key :route-key, :domkm.silk/pattern {:path ["users" :username]}}
-(silk/unmatch (silk/route [:route-key [["users" :username]]]) {:username "domkm"})
+(silk/match (silk/route [:route-name [["users" :username]]]) {:path ["users" "domkm"]})
+;=> {:username "domkm", :domkm.silk/name :route-name, :domkm.silk/pattern {:path ["users" :username]}}
+(silk/unmatch (silk/route [:route-name [["users" :username]]]) {:username "domkm"})
 ;=> #domkm.silk.URL{:scheme nil, :user nil, :host nil, :port nil, :path ["users" "domkm"], :query nil, :fragment nil}
 ```
 
@@ -149,8 +149,8 @@ None of that is particularly useful unless you can match and unmatch route colle
                 [:users-show [["users" (silk/integer :id)]]]]))
 
 (silk/match user-routes {:path ["users" "42"]})
-;=> {:id 42, :domkm.silk/key :users-show, :domkm.silk/routes #<Routes domkm.silk.Routes@c6f8bbc>, ...}
-(silk/unmatch user-routes {:id 42 :domkm.silk/key :users-show})
+;=> {:id 42, :domkm.silk/name :users-show, :domkm.silk/routes #<Routes domkm.silk.Routes@c6f8bbc>, ...}
+(silk/unmatch user-routes {:id 42 :domkm.silk/name :users-show})
 ;=> #domkm.silk.URL{:scheme nil, :user nil, :host nil, :port nil, :path ["users" "42"], :query nil, :fragment nil}
 ```
 
@@ -172,7 +172,7 @@ Routes can be constrained by request methods.
 (silk/match api-routes {:path ["api"]})
 ;=> nil
 (silk/match api-routes {:path ["api"] :request {:request-method :post}})
-;=> {:limit 100, :offset 0, :domkm.silk/key :api-data, ...}
+;=> {:limit 100, :offset 0, :domkm.silk/name :api-data, ...}
 ```
 
 Routes can be combined.
@@ -192,7 +192,7 @@ Silk provides a higher-level interface via `domkm.silk/arrive` and `domkm.silk/d
 
 ```clojure
 (silk/arrive all-routes "/pages/about")
-;=> {:title "about", :domkm.silk/key :other-page, ...}
+;=> {:title "about", :domkm.silk/name :other-page, ...}
 ```
 
 You can also provide a handler function.

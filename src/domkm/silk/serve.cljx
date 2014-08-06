@@ -16,7 +16,7 @@
 #+clj
 (defn ring-handler
   "Takes a routes data structure or instance of `domkm.silk/Routes` and a `get-handler` function.
-  `get-handler` should take a route key and return a handler function for that route.
+  `get-handler` should take a route name and return a handler function for that route.
   Returns a Ring handler function that:
     * takes Ring request map
     * converts the request map to a URL
@@ -27,8 +27,9 @@
   ([routes get-handler]
    (let [rtes (silk/routes routes)]
      (fn [req]
-       (when-let [{route-key :domkm.silk/key :as params} (silk/match rtes (request-map->URL req))]
-         ((get-handler route-key) (assoc req :params params)))))))
+       (when-let [params (silk/match rtes (request-map->URL req))]
+         ((-> params :domkm.silk/name get-handler)
+          (assoc req :params params)))))))
 
 
 ;;;; Request Method Pattern ;;;;
