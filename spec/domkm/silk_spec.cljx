@@ -5,6 +5,12 @@
   (:import [clojure.lang ExceptionInfo]))
 
 
+;;;; Helpers ;;;;
+
+#+cljs
+(def ^:private AssertionError js/Error)
+
+
 ;;;; URL ;;;;
 
 (spec/describe
@@ -85,8 +91,7 @@
    (spec/should= "bar" (silk/unmatch :foo {:foo "bar"})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw
-    ExceptionInfo (silk/unmatch :foo {}))))
+   (spec/should-throw AssertionError (silk/unmatch :foo {}))))
 
  (spec/context
   "vector"
@@ -130,10 +135,8 @@
                  (silk/unmatch (silk/integer :id) {:id 42})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/integer :id) {}))
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/integer :id) {:id []}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/integer :id) {}))
+   (spec/should-throw AssertionError (silk/unmatch (silk/integer :id) {:id []}))))
 
  (spec/context
   "silk/boolean"
@@ -152,10 +155,8 @@
                  (silk/unmatch (silk/boolean :happy) {:happy true})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/boolean :happy) {}))
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/boolean :happy) {:id []}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/boolean :happy) {}))
+   (spec/should-throw AssertionError (silk/unmatch (silk/boolean :happy) {:id []}))))
 
  (spec/context
   "silk/uuid"
@@ -172,10 +173,8 @@
                  (silk/unmatch (silk/uuid :uuid) {:uuid #uuid "c11902f0-21b6-4645-a218-9fa40ef69333"})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/uuid :uuid) {}))
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/uuid :uuid) {:uuid "uuid"}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/uuid :uuid) {}))
+   (spec/should-throw AssertionError (silk/unmatch (silk/uuid :uuid) {:uuid "uuid"}))))
 
  (spec/context
   "silk/alternative"
@@ -197,7 +196,7 @@
    (spec/should= "foo" (silk/unmatch @k-alt {:key "foo"})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo (silk/unmatch @k-alt {}))))
+   (spec/should-throw AssertionError (silk/unmatch @k-alt {}))))
 
  (spec/context
   "silk/composite"
@@ -218,8 +217,7 @@
                  (silk/unmatch (silk/composite ["foo" (silk/integer :answer) "bar"]) {:answer 42})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch (silk/composite ["foo" :answer "bar"]) {}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/composite ["foo" :answer "bar"]) {}))))
 
  (spec/context
   "silk/option"
@@ -251,8 +249,7 @@
                      (silk/unmatch {}))))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (-> (silk/integer :answer)
+   (spec/should-throw AssertionError (-> (silk/integer :answer)
                           (silk/option "42")
                           (silk/unmatch {:answer "foo"})))))
 
@@ -284,8 +281,7 @@
                  (silk/unmatch @routes {:domkm.silk/name :id3 :b "c"})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw ExceptionInfo
-                      (silk/unmatch @routes {})))
+   (spec/should-throw AssertionError  (silk/unmatch @routes {})))
   (spec/it
    "arrives"
    (spec/should= {:baz "baz"}

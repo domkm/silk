@@ -138,15 +138,15 @@
 
   Keyword
   (-match [this that]
-          (when-not (nil? that)
+          (when (some? that)
             {this that}))
   (-unmatch [this params]
-            (if (contains? params this)
-              (get params this)
-              (->> {:parameters params
-                    :key this}
-                   (ex-info "missing parameter key")
-                   throw)))
+            (assert (contains? params this)
+                    (str "parameter key `"
+                         this
+                         "` not found in parameters: "
+                         params))
+            (get params this))
 
   PersistentVector
   (-match [this that]
@@ -204,31 +204,29 @@
                               extract
                               deserialize))]
      (when-not (nil? param-val)
-       (if (validate param-val)
-         (if (nil? param-key)
-           {}
-           {param-key param-val})
-         (-> "parameter value failed validation"
-             (ex-info {:pattern this
-                       :string string})
-             throw)))))
+       (assert (validate param-val)
+               (str "parameter value `"
+                    param-val
+                    "` failed validation"))
+       (if (nil? param-key)
+         {}
+         {param-key param-val}))))
   (-unmatch
    [this params]
    (cond
     (nil? param-key) (insert nil)
     (contains? params param-key) (let [param-val (get params param-key)]
-                                   (if (validate param-val)
-                                     (-> param-val serialize insert)
-                                     (-> "parameter value failed validation"
-                                         (ex-info {:pattern this
-                                                   :params params})
-                                         throw)))
-    :else (if optional?
-            (insert nil)
-            (-> "parameter key not found"
-                (ex-info {:pattern this
-                          :params params})
-                throw)))))
+                                   (assert (validate param-val)
+                                           (str "parameter value `"
+                                                param-val
+                                                "` failed validation"))
+                                   (-> param-val serialize insert))
+    :else (do (assert optional?
+                      (str "parameter key `"
+                           this
+                           "` not found in parameters: "
+                           params))
+            (insert nil)))))
 
 (defn leaf-pattern? [x]
   (instance? LeafPattern x))
@@ -365,14 +363,9 @@
                     (assoc params ::routes this ::url url)))
                 routes-seq))
   (-unmatch [this {nm ::name :as params}]
-            {:pre [(some? nm)]}
-            (if-let [route (get routes-map nm) ]
-              (unmatch route (dissoc params ::routes ::url))
-              (-> "route not found"
-                  (ex-info {:routes this
-                            :params params
-                            :name nm})
-                  throw))))
+            (assert (and (some? nm)
+                         (contains? routes-map nm)))
+            (unmatch (get routes-map nm) (dissoc params ::routes ::url))))
 
 (defn routes? [x]
   (instance? Routes x))
