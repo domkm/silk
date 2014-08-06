@@ -1,5 +1,34 @@
 (ns domkm.silk.serve
-  (:require [domkm.silk :as silk]))
+  (:require [clojure.string :as str]
+            [domkm.silk :as silk]))
+
+
+#+clj
+(defn request-map->URL [{:keys [scheme server-name server-port uri query-string] :as req}]
+  (-> {:scheme (name scheme)
+       :host (-> server-name (str/split #"\.") reverse vec)
+       :port (str server-port)
+       :path (silk/decode-path uri)
+       :query (silk/decode-query query-string)}
+      silk/url
+      (assoc :request req)))
+
+#+clj
+(defn ring-handler
+  "Takes a routes data structure or instance of `domkm.silk/Routes` and a `get-handler` function.
+  `get-handler` should take a route key and return a handler function for that route.
+  Returns a Ring handler function that:
+    * takes Ring request map
+    * converts the request map to a URL
+    * associates the request map into the URL
+    * matches routes against the new URL
+    * when a match is found, associates params into request and passes that to a route handler function"
+  ([routes] (ring-handler routes identity))
+  ([routes get-handler]
+   (let [rtes (silk/routes routes)]
+     (fn [req]
+       (when-let [{route-key :domkm.silk/key :as params} (silk/match rtes (request-map->URL req))]
+         ((get-handler route-key) (assoc req :params params)))))))
 
 
 ;;;; Request Method Pattern ;;;;

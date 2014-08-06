@@ -16,9 +16,10 @@
   :test-paths ["spec" "target/spec"]
 
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2280" :scope "provided"]] ; "0.0-2277"
+                 [org.clojure/clojurescript "0.0-2280" :scope "provided"]]
 
-  :profiles {:dev {:dependencies [[speclj "3.0.2"]]}}
+  :profiles {:dev {:dependencies [[ring-mock "0.1.5"]
+                                  [speclj "3.0.2"]]}}
 
   :plugins [[com.keminglabs/cljx "0.4.0"]
             [lein-cljsbuild "1.0.3"]
