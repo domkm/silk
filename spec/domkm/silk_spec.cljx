@@ -208,7 +208,8 @@
                  (silk/match (silk/composite ["foo" (silk/integer :answer) "bar"]) "foo42bar")))
   (spec/it
    "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/composite ["foo" :answer "bar"]) "foop")))
+   (spec/should-be-nil (silk/match (silk/composite ["foo" :answer "bar"]) "foop"))
+   (spec/should-be-nil (silk/match (silk/composite ["pre" (silk/integer :i) "post"]) "pre5cpost")))
   (spec/it
    "unmatches successfully"
    (spec/should= "foo42bar"

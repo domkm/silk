@@ -294,21 +294,20 @@
      :insert identity
      :validate (set alts))))
 
-(defn composite
-  "Takes a seqable of strings and one LeafPattern or Keyword.
-  Returns a LeafPattern that matches a composite of the strings and LeafPattern."
-  [strs&lp]
-  {:pre [(->> strs&lp (remove string?) count (= 1))
-         (apply (some-fn keyword? leaf-pattern?) strs&lp)]}
-  (let [[a [_ z]] (split-with string? strs&lp)
-        [a-str z-str] (map str/join [a z])]
-    (merge (->> strs&lp
-                (remove string?)
-                first
-                leaf-pattern)
-           {:regex (re-pattern (str "^" a-str "(.+)" z-str "$"))
-            :extract second
-            :insert #(str a-str % z-str)})))
+(defn composite [patterns]
+  (let [re (->> patterns
+                (map #(str "(" (if (string? %) (re-quote-replacement %) ".+") ")"))
+                str/join
+                re-pattern)]
+    (reify Pattern
+      (-match [_ s]
+              (when-let [m (re-find re s)]
+                (->> (rest m)
+                     (interleave patterns)
+                     (partition 2)
+                     match-all)))
+      (-unmatch [_ params]
+                (str/join (map #(unmatch % params) patterns))))))
 
 (defn option [pattern default]
   {:pre [(string? default)]}
