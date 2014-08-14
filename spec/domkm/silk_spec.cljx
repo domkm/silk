@@ -17,7 +17,7 @@
  "URL"
 
  (spec/context
- "encoding/decoding"
+  "encoding/decoding"
   (spec/with-all de-string " !'()+~")
   (spec/with-all en-string "%20%21%27%28%29%2B%7E")
   (spec/it
@@ -40,8 +40,8 @@
    (spec/should= (silk/decode-path @path-str) @path-vec)))
 
  (spec/context
- "query encoding/decoding"
-  (spec/with-all query-str "foo=bar&baz=qux")
+  "query encoding/decoding"
+  (spec/with-all query-str "baz=qux&foo=bar")
   (spec/with-all query-map {"foo" "bar", "baz" "qux"})
   (spec/it
    "encodes"
@@ -60,7 +60,7 @@
                  (silk/url "/a?"))
    (spec/should= (silk/map->URL {:path ["a"] :query {"b" "c"}})
                  (silk/url "/a?b=c"))
-   (spec/should= (silk/map->URL {:query {"b" "c"}})
+   (spec/should= (silk/map->URL {:query {"b" "c"} :path []})
                  (silk/url "?b=c")))))
 
 
@@ -121,42 +121,66 @@
    (spec/should-be-nil (silk/match {"foo" :bar} {"not-foo" "blah"}))))
 
  (spec/context
-  "silk/integer"
+  "silk/regex"
   (spec/it
    "matches successfully"
-   (spec/should= {:id 42}
-                 (silk/match (silk/integer :id) "42")))
+   (spec/should= {:re "foo"}
+                 (silk/match (silk/regex :re #"foo") "foo"))
+   (spec/should= {:re ["foobar" "bar"]}
+                 (silk/match (silk/regex :re #"foo(.*)") "foobar")))
   (spec/it
    "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/integer :id) "a42")))
+   (spec/should-be-nil (silk/match (silk/regex :re #"foo") "bar")))
   (spec/it
    "unmatches successfully"
-   (spec/should= "42"
-                 (silk/unmatch (silk/integer :id) {:id 42})))
+   (spec/should= "foo"
+                 (silk/unmatch (silk/regex :re #"foo") {:re "foo"}))
+   (spec/should= "foobar"
+                 (silk/unmatch (silk/regex :re #"foo(.*)") {:re ["foobar" "foo"]})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw AssertionError (silk/unmatch (silk/integer :id) {}))
-   (spec/should-throw AssertionError (silk/unmatch (silk/integer :id) {:id []}))))
+   (spec/should-throw AssertionError
+                      (silk/unmatch (silk/regex :re #"foo(.*)") {:re "a"}))
+   (spec/should-throw AssertionError
+                      (silk/unmatch (silk/regex :re #"foo(.*)") {:re ["bar" "foo"]}))))
 
  (spec/context
-  "silk/boolean"
+  "silk/bool"
   (spec/it
    "matches successfully"
    (spec/should= {:happy true}
-                 (silk/match (silk/boolean :happy) "true"))
+                 (silk/match (silk/bool :happy) "true"))
    (spec/should= {:happy false}
-                 (silk/match (silk/boolean :happy) "false")))
+                 (silk/match (silk/bool :happy) "false")))
   (spec/it
    "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/boolean :happy) "truth")))
+   (spec/should-be-nil (silk/match (silk/bool :happy) "truth")))
   (spec/it
    "unmatches successfully"
    (spec/should= "true"
-                 (silk/unmatch (silk/boolean :happy) {:happy true})))
+                 (silk/unmatch (silk/bool :happy) {:happy true})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw AssertionError (silk/unmatch (silk/boolean :happy) {}))
-   (spec/should-throw AssertionError (silk/unmatch (silk/boolean :happy) {:id []}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/bool :happy) {}))
+   (spec/should-throw AssertionError (silk/unmatch (silk/bool :happy) {:id []}))))
+
+ (spec/context
+  "silk/int"
+  (spec/it
+   "matches successfully"
+   (spec/should= {:id 42}
+                 (silk/match (silk/int :id) "42")))
+  (spec/it
+   "matches unsuccessfully"
+   (spec/should-be-nil (silk/match (silk/int :id) "a42")))
+  (spec/it
+   "unmatches successfully"
+   (spec/should= "42"
+                 (silk/unmatch (silk/int :id) {:id 42})))
+  (spec/it
+   "unmatches unsuccessfully"
+   (spec/should-throw AssertionError (silk/unmatch (silk/int :id) {}))
+   (spec/should-throw AssertionError (silk/unmatch (silk/int :id) {:id []}))))
 
  (spec/context
   "silk/uuid"
@@ -177,87 +201,71 @@
    (spec/should-throw AssertionError (silk/unmatch (silk/uuid :uuid) {:uuid "uuid"}))))
 
  (spec/context
-  "silk/alternative"
-  (spec/with-all alt (silk/alternative ["foo" "bar" "baz"]))
-  (spec/with-all k-alt (silk/alternative :key ["foo" "bar" "baz"]))
-  (spec/it
-   "matches successfully"
-   (spec/should= {} (silk/match @alt "foo"))
-   (spec/should= {} (silk/match @alt "bar"))
-   (spec/should= {:key "foo"} (silk/match @k-alt "foo"))
-   (spec/should= {:key "bar"} (silk/match @k-alt "bar")))
-  (spec/it
-   "matches unsuccessfully"
-   (spec/should-be-nil (silk/match @alt "qwerty"))
-   (spec/should-be-nil (silk/match @k-alt "qwerty")))
-  (spec/it
-   "unmatches successfully"
-   (spec/should= "foo" (silk/unmatch @alt {}))
-   (spec/should= "foo" (silk/unmatch @k-alt {:key "foo"})))
-  (spec/it
-   "unmatches unsuccessfully"
-   (spec/should-throw AssertionError (silk/unmatch @k-alt {}))))
-
- (spec/context
-  "silk/composite"
+  "silk/cat"
   (spec/it
    "matches successfully"
    (spec/should= {:answer "42"}
-                 (silk/match (silk/composite ["foo" :answer "bar"]) "foo42bar"))
+                 (silk/match (silk/cat "foo" :answer "bar") "foo42bar"))
    (spec/should= {:answer 42}
-                 (silk/match (silk/composite ["foo" (silk/integer :answer) "bar"]) "foo42bar")))
+                 (silk/match (silk/cat "foo" (silk/int :answer) "bar") "foo42bar"))
+   (spec/should= {:id 42 :this "j"}
+                 (silk/match (silk/cat "user-" (silk/int :id) "-fred" (silk/? :this {:this "that"}) "s") "user-42-fredjs"))
+   (spec/should= {:id 42 :this "that"}
+                 (silk/match (silk/cat "user-" (silk/int :id) "-fred" (silk/? :this {:this "that"}) "s") "user-42-freds"))
+   (spec/should= {:id "blah"}
+                 (silk/match (silk/cat "article-" (silk/? :id {:id "not-found"})) "article-blah")))
   (spec/it
    "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (silk/composite ["foo" :answer "bar"]) "foop"))
-   (spec/should-be-nil (silk/match (silk/composite ["pre" (silk/integer :i) "post"]) "pre5cpost")))
+   (spec/should-be-nil (silk/match (silk/cat "foo" :answer "bar") "foop"))
+   (spec/should-be-nil (silk/match (silk/cat "pre" (silk/int :i) "post") "pre5cpost")))
   (spec/it
    "unmatches successfully"
    (spec/should= "foo42bar"
-                 (silk/unmatch (silk/composite ["foo" :answer "bar"]) {:answer "42"}))
+                 (silk/unmatch (silk/cat "foo" :answer "bar") {:answer "42"}))
    (spec/should= "foo42bar"
-                 (silk/unmatch (silk/composite ["foo" (silk/integer :answer) "bar"]) {:answer 42})))
+                 (silk/unmatch (silk/cat "foo" (silk/int :answer) "bar") {:answer 42})))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw AssertionError (silk/unmatch (silk/composite ["foo" :answer "bar"]) {}))))
+   (spec/should-throw AssertionError (silk/unmatch (silk/cat "foo" :answer "bar") {}))))
 
  (spec/context
-  "silk/option"
+  "silk/?"
   (spec/it
    "matches successfully"
    (spec/should= {:answer 42}
-                 (silk/match (silk/option (silk/integer :answer) "42") nil))
+                 (silk/match (silk/? (silk/int :answer) {:answer 42}) nil))
    (spec/should= {:answer 42}
-                 (silk/match (silk/option (silk/integer :answer) "42") "42"))
+                 (silk/match (silk/? (silk/int :answer) {:answer 42}) "42"))
    (spec/should= {:answer 100}
-                 (silk/match (silk/option (silk/integer :answer) "42") "100"))
+                 (silk/match (silk/? (silk/int :answer) {:answer 42}) "100"))
    (spec/should= {:answer "42"}
-                 (silk/match (silk/option :answer "42") nil)))
+                 (silk/match (silk/? :answer {:answer "42"}) nil)))
   (spec/it
    "matches unsuccessfully"
-   (-> (silk/integer :answer)
-       (silk/option "42")
+   (-> (silk/int :answer)
+       (silk/? {:answer 42})
        (silk/match "foob")
        spec/should-be-nil))
   (spec/it
    "unmatches successfully"
    (spec/should= "42"
-                 (-> (silk/integer :answer)
-                     (silk/option "42")
+                 (-> (silk/int :answer)
+                     (silk/? {:answer 42})
                      (silk/unmatch {:answer 42})))
    (spec/should= "42"
-                 (-> (silk/integer :answer)
-                     (silk/option "42")
+                 (-> (silk/int :answer)
+                     (silk/? {:answer 42})
                      (silk/unmatch {}))))
   (spec/it
    "unmatches unsuccessfully"
-   (spec/should-throw AssertionError (-> (silk/integer :answer)
-                          (silk/option "42")
-                          (silk/unmatch {:answer "foo"})))))
+   (spec/should-throw AssertionError (-> (silk/int :answer)
+                                         (silk/? {:answer 42})
+                                         (silk/unmatch {:answer "foo"})))))
 
  (spec/context
   "silk/routes"
   (spec/with-all routes
-    (silk/routes [[:id1 [nil nil {:request {:request-method :method}}]]
+    (silk/routes [[:id1 [nil nil {:request-method :method}]]
                   (silk/routes [[:id2 [["foo" "bar" :baz]]]])
                   [:id3 [nil {"a" :b}]]]))
   (spec/with-all clean-params
@@ -266,7 +274,7 @@
    "matches successfully"
    (spec/should= {:method :get}
                  (@clean-params
-                  (silk/match @routes (silk/map->URL {:request {:request-method :get}}))))
+                  (silk/match @routes (silk/url {:request-method :get}))))
    (spec/should= {:baz "baz"}
                  (@clean-params
                   (silk/match @routes (silk/map->URL {:path ["foo" "bar" "baz"]}))))

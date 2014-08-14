@@ -1,32 +1,32 @@
 (ns domkm.silk
-  (:refer-clojure :exclude [boolean])
-  (:require [#+clj clojure.core #+cljs cljs.core :as clj]
-            [clojure.string :as str])
-  #+clj (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
-                 [java.util UUID]))
+  (:refer-clojure :exclude [int])
+  (:require [clojure.string :as str]
+            #+clj [clojure.core :as core]
+            #+cljs [cljs.core :as core])
+  #+clj
+  (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
+           [java.util UUID]))
 
 
 ;;;; URL ;;;;
 
-(defn ^String encode
-  [^String s]
+(defn ^String encode [^String s]
   (-> s
       #+clj (java.net.URLEncoder/encode "UTF-8")
-      #+cljs js/encodeURIComponent
       #+clj (str/replace #"\+" "%20")
+      #+cljs js/encodeURIComponent
       #+cljs (str/replace #"[!'()]" js/escape)
       #+cljs (str/replace #"~" "%7E")))
 
-(defn ^String decode
-  [s]
-  (-> s
-      #+clj (java.net.URLDecoder/decode "UTF-8")
-      #+cljs js/decodeURIComponent))
+(defn ^String decode [s]
+  #+clj (java.net.URLDecoder/decode s "UTF-8")
+  #+cljs (js/decodeURIComponent s))
 
 (defn encode-path
   "Takes a path seqable.
   Returns a string of path segments encoded, joined with `/`, and prepended with `/`."
   [path]
+  {:pre [(every? not-empty path)]}
   (->> path
        (map encode)
        (str/join "/")
@@ -36,18 +36,16 @@
   "Takes a path string.
   Returns a vector of decoded path segments."
   [^String s]
-  (when-not (str/blank? s)
-    (->> (str/split s #"/")
-         (remove str/blank?)
-         (mapv decode))))
+  (->> (str/split s #"/")
+       (remove str/blank?)
+       (mapv decode)))
 
 (defn encode-query
   "Takes a query map.
   Returns a string of query pairs encoded and joined."
   [query]
-  (->> query
-       (map (fn [[k v]] (str (encode k) "=" (encode v))))
-       (str/join "&")))
+  (str/join "&" (for [[k v] (sort query)]
+                  (str (encode k) "=" (encode v)))))
 
 (defn decode-query
   "Takes a query string.
@@ -80,96 +78,6 @@
                        :query (-> q str decode-query)}))
    (map? x) (map->URL x)))
 
-
-  ;;;; Pattern ;;;;
-
-(defprotocol Pattern
-  (-match [this that])
-  (-unmatch [this params]))
-
-(defn pattern? [x]
-  (satisfies? Pattern x))
-
-(defn match [pattern x]
-  (-match pattern x))
-
-(defn unmatch [pattern params]
-  (-unmatch pattern params))
-
-
-;;;; Native Patterns ;;;;
-
-(defn ^:private match-all [pairs]
-  (loop [pairs pairs
-         ret (transient {})]
-    (if-let [[x y] (first pairs)]
-      (when-let [mch (match x y)]
-        (recur (rest pairs)
-               (reduce-kv assoc! ret mch)))
-      (persistent! ret))))
-
-(defn ^:private match-all-map [patterns-map url-map]
-  (->> patterns-map
-       (map (fn [[k v]]
-              [v (get url-map k)]))
-       match-all))
-
-(defn ^:private unmatch-all-map [patterns-map params]
-  (->> patterns-map
-       (reduce-kv (fn [m k pat] (assoc! m k (unmatch pat params)))
-                  (transient {}))
-       persistent!))
-
-(extend-protocol Pattern
-
-  nil
-  (-match [_ _]
-          {})
-  (-unmatch [_ _]
-            nil)
-
-  #+clj String
-  #+cljs string
-  (-match [this that]
-          (when (= this that)
-            {}))
-  (-unmatch [this _]
-            this)
-
-  Keyword
-  (-match [this that]
-          (when (some? that)
-            {this that}))
-  (-unmatch [this params]
-            (assert (contains? params this)
-                    (str "parameter key `"
-                         this
-                         "` not found in parameters: "
-                         params))
-            (get params this))
-
-  PersistentVector
-  (-match [this that]
-          (when (== (count this)
-                    (count that))
-            (->> (interleave this that)
-                 (partition 2)
-                 match-all)))
-  (-unmatch [this params]
-            (mapv #(unmatch % params) this))
-
-  PersistentArrayMap
-  (-match [this that]
-          (match-all-map this that))
-  (-unmatch [this that]
-            (unmatch-all-map this that))
-
-  PersistentHashMap
-  (-match [this that]
-          (match-all-map this that))
-  (-unmatch [this that]
-            (unmatch-all-map this that)))
-
 (defn url-pattern [x]
   (cond
    (map? x) x
@@ -179,148 +87,249 @@
                       (into {})))))
 
 
-;;;; Leaf Pattern ;;;;
+;;;; Pattern ;;;;
 
-(def ^:private re-quote-char-map
-  (reduce #(assoc %1 %2 (str "\\" %2))
-          {}
-          "\\.*+|?()[]{}$^"))
+(defprotocol Pattern
+  (-match [this that])
+  (-unmatch [this params])
+  (-match-validator [this])
+  (-unmatch-validators [this]))
+
+(defn pattern? [x]
+  (satisfies? Pattern x))
+
+(defn match-validator [ptrn]
+  {:pre [(pattern? ptrn)]
+   :post [(fn? %)]}
+  (-match-validator ptrn))
+
+(defn unmatch-validators [ptrn]
+  {:pre [(pattern? ptrn)]
+   :post [(map? %)
+          (every? some? (keys %))
+          (every? fn? (vals %))]}
+  (-unmatch-validators ptrn))
+
+(defn match-valid? [ptrn x]
+  (boolean ((match-validator ptrn) x)))
+
+(defn unmatch-valid? [ptrn params]
+  (->> ptrn
+       unmatch-validators
+       (map (fn [[k v]]
+              (v (get params k))))
+       (every? identity)))
+
+(defn match [ptrn x]
+  {:pre [(pattern? ptrn)]
+   :post [(or (nil? %)
+              (unmatch-valid? ptrn %))]}
+  (when (match-valid? ptrn x)
+    (-match ptrn x)))
+
+(defn unmatch [ptrn params]
+  {:pre [(unmatch-valid? ptrn params)]
+   :post [(match-valid? ptrn %)]}
+  (-unmatch ptrn params))
+
+
+;;;; Native Patterns ;;;;
+
+(extend-type #+clj String #+cljs string
+  Pattern
+  (-match [this that]
+          (when (= this that)
+            {}))
+  (-unmatch [this _]
+            this)
+  (-match-validator [_]
+                    string?)
+  (-unmatch-validators [_]
+                       {}))
+
+(extend-type Keyword
+  Pattern
+  (-match [this that]
+          {this that})
+  (-unmatch [this params]
+            (get params this))
+  (-match-validator [_]
+                    some?)
+  (-unmatch-validators [this]
+                       {this some?}))
+
+(defn ^:private match-coll [ks %1s %2s]
+  (loop [ks ks
+         ret (transient {})]
+    (if-some
+     [k (first ks)]
+     (when-let [m (match (get %1s k) (get %2s k))]
+       (recur (rest ks)
+              (reduce-kv #(assoc! %1 %2 %3) ret m)))
+     (persistent! ret))))
+
+(extend-type PersistentVector
+  Pattern
+  (-match [this that]
+          (when (== (count this)
+                    (count that))
+            (match-coll (-> this count range) this that)))
+  (-unmatch [this params]
+            (mapv #(unmatch % params) this))
+  (-match-validator [_]
+                    vector?)
+  (-unmatch-validators [_]
+                       {}))
+
+(defn ^:private unmatch-map [ptrn params]
+  (loop [kvs (seq ptrn)
+         ret (transient {})]
+    (if-let [[k v] (first kvs)]
+      (recur (rest kvs)
+             (assoc! ret k (unmatch v params)))
+      (persistent! ret))))
+
+(extend-type PersistentArrayMap
+  Pattern
+  (-match [this that]
+          (match-coll (keys this) this that))
+  (-unmatch [this that]
+            (unmatch-map this that))
+  (-match-validator [_]
+                    map?)
+  (-unmatch-validators [_]
+                       {}))
+
+(extend-type PersistentHashMap
+  Pattern
+  (-match [this that]
+          (match-coll (keys this) this that))
+  (-unmatch [this that]
+            (unmatch-map this that))
+  (-match-validator [_]
+                    map?)
+  (-unmatch-validators [_]
+                       {}))
+
+
+;;;; Built-In Patterns ;;;;
 
 ; TODO: add `clojure.string/re-quote-replacement` to ClojureScript
-(defn ^:private re-quote-replacement [s]
-  (str/escape s re-quote-char-map))
+(let [re-quote-char-map (reduce
+                         #(assoc %1 %2 (str "\\" %2))
+                         {}
+                         "\\.*+|?()[]{}$^")]
+  (defn ^:private re-quote-replacement [s]
+    (str/escape s re-quote-char-map)))
 
-(defrecord LeafPattern [param-key optional?
-                        regex validate
-                        extract insert
-                        deserialize serialize]
+(defrecord ^:private RegexPattern [param-key regex deserialize serialize validate]
   Pattern
-  (-match
-   [this string]
-   (let [param-val (if (and optional? (nil? string))
-                     (-> nil extract deserialize)
-                     (some->> string
-                              (re-find regex)
-                              extract
-                              deserialize))]
-     (when-not (nil? param-val)
-       (assert (validate param-val)
-               (str "parameter value `"
-                    param-val
-                    "` failed validation"))
-       (if (nil? param-key)
-         {}
-         {param-key param-val}))))
-  (-unmatch
-   [this params]
-   (cond
-    (nil? param-key) (insert nil)
-    (contains? params param-key) (let [param-val (get params param-key)]
-                                   (assert (validate param-val)
-                                           (str "parameter value `"
-                                                param-val
-                                                "` failed validation"))
-                                   (-> param-val serialize insert))
-    :else (do (assert optional?
-                      (str "parameter key `"
-                           this
-                           "` not found in parameters: "
-                           params))
-            (insert nil)))))
+  (-match [_ s]
+          (some->> (re-matches regex s)
+                   deserialize
+                   (hash-map param-key)))
+  (-unmatch [_ params]
+            (->> param-key
+                 (get params)
+                 serialize))
+  (-match-validator [_]
+                    string?)
+  (-unmatch-validators [_]
+                       {param-key validate}))
 
-(defn leaf-pattern? [x]
-  (instance? LeafPattern x))
+(defn regex
+  ([k re]
+   (regex k re {}))
+  ([k re {:keys [deserialize serialize validate]
+          :or {deserialize identity
+               serialize #(if (vector? %) (nth % 0) %)
+               validate #(when-let [s (if (vector? %) (first %) %)]
+                           (and (string? s)
+                                (re-find re s)))}}]
+   {:pre [(some? k)]}
+   (map->RegexPattern {:param-key k
+                       :regex re
+                       :deserialize deserialize
+                       :serialize serialize
+                       :validate validate})))
 
-(defn leaf-pattern [x]
-  (cond
-   (leaf-pattern? x) x
-   (map? x) (-> {:regex #".+"
-                 :extract #(if (vector? %) (first %) %)
-                 :insert identity
-                 :deserialize identity
-                 :serialize identity
-                 :validate (constantly true)}
-                (merge x)
-                map->LeafPattern)
-   (string? x) (->> (str "^" (re-quote-replacement x) "$")
-                    re-pattern
-                    (hash-map :insert (constantly x) :regex)
-                    leaf-pattern)
-   (keyword? x) (leaf-pattern {:param-key x})))
+(defn bool [k]
+  (regex k
+         #"true|false"
+         {:deserialize #(= "true" %)
+          :serialize str
+          :validate #+clj #(instance? Boolean %) #+cljs #(identical? js/Boolean (type %))}))
 
-
-;;;; Extra Leaf Patterns ;;;;
-
-(defn integer [k]
-  {:pre [(keyword? k)]}
-  (leaf-pattern
-   {:param-key k
-    :regex #"^\d+$"
-    :deserialize #+clj #(Integer/parseInt %) #+cljs #(js/parseInt % 10)
-    :serialize str
-    :validate integer?}))
-
-(defn boolean [k]
-  {:pre [(keyword? k)]}
-  (leaf-pattern
-   {:param-key k
-    :regex #"^true$|^false$"
-    :deserialize #(= "true" %)
-    :serialize str
-    :validate #+clj #(instance? Boolean %) #+cljs #(identical? js/Boolean (type %))}))
+(defn int [k]
+  (regex k
+         #"\d+"
+         {:deserialize #+clj #(Integer/parseInt %) #+cljs #(js/parseInt % 10)
+          :serialize str
+          :validate integer?}))
 
 (defn uuid [k]
-  {:pre [(keyword? k)]}
-  (leaf-pattern
-   {:param-key k
-    :regex #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    :deserialize #+clj #(UUID/fromString %) #+cljs ->UUID
-    :serialize str
-    :validate #(instance? UUID %)}))
+  (regex k
+         #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+         {:deserialize #+clj #(UUID/fromString %) #+cljs ->UUID
+          :serialize str
+          :validate #(instance? UUID %)}))
 
-(defn alternative
-  ([alts]
-   {:pre [(every? string? alts)]} ; TODO: It would be nice if we could use any patterns, not just strings.
-   (->> alts
-        (map #(str "^" (re-quote-replacement %) "$"))
-        (str/join "|")
-        re-pattern
-        (hash-map :insert (-> alts first constantly) :regex)
-        leaf-pattern))
-  ([k alts]
-   {:pre [(keyword? k)]}
-   (assoc (alternative alts)
-     :param-key k
-     :insert identity
-     :validate (set alts))))
-
-(defn composite [patterns]
-  (let [re (->> patterns
-                (map #(str "(" (if (string? %) (re-quote-replacement %) ".+") ")"))
+(defn cat [& ptrns]
+  {:pre [(every? #(match-valid? % "string") ptrns)
+         (let [pkeys (mapcat (comp keys unmatch-validators) ptrns)]
+           (or (empty? pkeys)
+               (apply distinct? pkeys)))]}
+  (let [re-str #(list "("
+                      (cond
+                       (string? %)
+                       (re-quote-replacement %),
+                       (instance? RegexPattern %)
+                       #+clj (-> % :regex str) ; clj (str #"re") => "re"
+                       #+cljs (let [s (-> % :regex str)] ; cljs (str #"re") => "/re/"
+                                (subs s 1 (-> s .-length dec))),
+                       :else ".*")
+                      ")")
+        re (->> ptrns
+                (mapcat re-str)
                 str/join
-                re-pattern)]
-    (reify Pattern
+                re-pattern)
+        ptrns (vec ptrns)
+        validator (apply merge (map unmatch-validators ptrns))]
+    (reify
+      Pattern
       (-match [_ s]
-              (when-let [m (re-find re s)]
-                (->> (rest m)
-                     (interleave patterns)
-                     (partition 2)
-                     match-all)))
+              (when-let [v (re-find re s)]
+                (->> (subvec v 1)
+                     (mapv not-empty)
+                     (match ptrns))))
       (-unmatch [_ params]
-                (str/join (map #(unmatch % params) patterns))))))
+                (str/join (unmatch ptrns params)))
+      (-match-validator [_]
+                        string?)
+      (-unmatch-validators [_]
+                           validator))))
 
-(defn option [pattern default]
-  {:pre [(string? default)]}
-  (let [wrap-fn (fn [f x] #(if (nil? %) x (f %)))
-        lp (leaf-pattern pattern)
-        lp (assoc lp
-             :optional? true
-             :extract (wrap-fn (:extract lp) default)
-             :insert (wrap-fn (:insert lp) default))]
-    (assert (let [m (match lp default)]
-              (and m (unmatch lp m)))
-            "default does not match")
-    lp))
+(defn ? [ptrn default-params]
+  {:pre [(pattern? ptrn)
+         (unmatch ptrn default-params)]}
+  (reify
+    Pattern
+    (-match [_ that]
+            (if (nil? that)
+              default-params
+              (match ptrn that)))
+    (-unmatch [_ params]
+              (unmatch ptrn
+                       (merge-with (fn [pval dval]
+                                     (if (nil? pval)
+                                       dval
+                                       pval))
+                                   params
+                                   default-params)))
+    (-match-validator [_]
+                      (some-fn nil? (match-validator ptrn)))
+    (-unmatch-validators [_]
+                         {})))
 
 
 ;;;; Route Pattern ;;;;
@@ -334,6 +343,10 @@
             (->> (dissoc params ::name ::pattern)
                  (unmatch pattern)
                  url))
+  (-match-validator [_]
+                    url?)
+  (-unmatch-validators [_]
+                       {})
   ; so much for portable code :'(
   #+clj java.util.Map$Entry
   #+clj (getKey [_] name)
@@ -364,7 +377,11 @@
   (-unmatch [this {nm ::name :as params}]
             (assert (and (some? nm)
                          (contains? routes-map nm)))
-            (unmatch (get routes-map nm) (dissoc params ::routes ::url))))
+            (unmatch (get routes-map nm) (dissoc params ::routes ::url)))
+  (-match-validator [_]
+                    url?)
+  (-unmatch-validators [_]
+                       {}))
 
 (defn routes? [x]
   (instance? Routes x))

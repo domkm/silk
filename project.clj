@@ -1,6 +1,6 @@
 (defproject com.domkm/silk "0.0.1-SNAPSHOT"
 
-  :description "Isomorphic Clojure & ClojureScript Routing"
+  :description "Clojure[Script] Routing"
 
   :url "https://github.com/domkm/silk"
 
@@ -30,9 +30,9 @@
                    "clean,"
                    "cljx" "once,"
                    ["pdo"
-                   "cljx" "auto,"
-                   "cljsbuild" "auto,"
-                   "spec" "--autotest"]]}
+                    "cljx" "auto,"
+                    "cljsbuild" "auto,"
+                    "spec" "--autotest"]]}
 
   :hooks [cljx.hooks]
 

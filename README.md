@@ -79,9 +79,9 @@ Keywords are wildcards.
 There are also built in patterns for common use cases.
 
 ```clojure
-(silk/match (silk/integer :answer) "42")
+(silk/match (silk/int :answer) "42")
 ;=> {:answer 42}
-(silk/unmatch (silk/integer :answer) {:answer 42})
+(silk/unmatch (silk/int :answer) {:answer 42})
 ;=> "42"
 
 (silk/match (silk/uuid :id) "c11902f0-21b6-4645-a218-9fa40ef69333")
@@ -89,32 +89,21 @@ There are also built in patterns for common use cases.
 (silk/unmatch (silk/uuid :id) {:id #uuid "c11902f0-21b6-4645-a218-9fa40ef69333"})
 ;=> "c11902f0-21b6-4645-a218-9fa40ef69333"
 
-(silk/match (silk/alternative :char ["a" "b" "c"]) "a")
-;=> {:char "a"}
-(silk/match (silk/alternative :char ["a" "b" "c"]) "b")
-;=> {:char "b"}
-(silk/match (silk/alternative :char ["a" "b" "c"]) "x")
-;=> nil
-
-(silk/match (silk/composite ["user-" (silk/integer :id)]) "user-42")
+(silk/match (silk/cat "user-" (silk/int :id)) "user-42")
 ;=> {:id 42}
-(silk/unmatch (silk/composite ["user-" (silk/integer :id)]) {:id 42})
+(silk/unmatch (silk/cat "user-" (silk/int :id)) {:id 42})
 ;=> "user-42"
 
-(silk/match (silk/option :this "that") "foo")
+(silk/match (silk/? :this {:this "that"}) "foo")
 ;=> {:this "foo"}
-(silk/match (silk/option :this "that") nil)
-;=> {:this "else"}
-(silk/unmatch (silk/option :this "that") {:this "foo"})
-;=> "foo"
-(silk/unmatch (silk/option :this "that") {})
-;=> "that"
+(silk/match (silk/? :this {:this "that"}) nil)
+;=> {:this "that"}
 ```
 
 Patterns can be data structures.
 
 ```clojure
-(silk/match ["users" (silk/integer :id)] ["users" "42"])
+(silk/match ["users" (silk/int :id)] ["users" "42"])
 ;=> {:id 42}
 ```
 A route can be created with a 2-tuple. The first element is a route name and the second element is something that can be turned into a URL pattern.
@@ -146,7 +135,7 @@ None of that is particularly useful unless you can match and unmatch route colle
 ```clojure
 (def user-routes
   (silk/routes [[:users-index [["users"]]]
-                [:users-show [["users" (silk/integer :id)]]]]))
+                [:users-show [["users" (silk/int :id)]]]]))
 
 (silk/match user-routes {:path ["users" "42"]})
 ;=> {:id 42, :domkm.silk/name :users-show, :domkm.silk/routes #<Routes domkm.silk.Routes@c6f8bbc>, ...}
@@ -166,12 +155,13 @@ Routes can be constrained by request methods.
 
 ```clojure
 (def api-routes
-  (silk/routes {:api-data (serve/method :post [["api"] {"limit" (silk/option (silk/integer :limit) "100")
-                                                        "offset" (silk/option (silk/integer :offset) "0")}])}))
+  (silk/routes {:api-data [["api"] {"limit" (silk/? (silk/int :limit) {:limit 100})
+                                    "offset" (silk/? (silk/int :offset) {:offset 0})} (serve/POST)]}))
+
 
 (silk/match api-routes {:path ["api"]})
 ;=> nil
-(silk/match api-routes {:path ["api"] :request {:request-method :post}})
+(silk/match api-routes {:path ["api"] :request-method :post})
 ;=> {:limit 100, :offset 0, :domkm.silk/name :api-data, ...}
 ```
 
@@ -216,7 +206,6 @@ As with `domkm.silk/arrive`, you can provide a handler function.
 ;=> "/PAGES/ABOUT"
 ```
 
-
 __Go forth and route!__
 
 ### Status
@@ -224,10 +213,6 @@ __Go forth and route!__
 Silk is very much a work-in-progress. Everything is subject to change.
 
 If you have suggestions, please do share them.
-
-### Contributing
-
-Pull requests and issues are welcome.
 
 ### License
 

@@ -20,7 +20,7 @@
                                 :query {"q" "awesome"}}))
   (spec/it
    "parses a ring request and created a URL"
-   (spec/should= (assoc @url :request @req)
+   (spec/should= (silk/url (merge @req @url))
                  (serve/request-map->URL @req))))
  (spec/context
   "serve/ring-handler"
@@ -57,33 +57,18 @@
 
 (spec/describe
  "serve/RequestMethodPattern"
-
- (spec/context
-  "serve/request-method-pattern"
-  (spec/it
-   "matches successfully"
-   (spec/should= {} (silk/match (serve/request-method-pattern :get false) :get))
-   (spec/should= {} (silk/match (serve/request-method-pattern :get true) :get))
-   (spec/should= {} (silk/match (serve/request-method-pattern :get true) nil)))
-  (spec/it
-   "matches unsuccessfully"
-   (spec/should-be-nil (silk/match (serve/request-method-pattern :get false) :post))
-   (spec/should-be-nil (silk/match (serve/request-method-pattern :get true) :post)))
-  (spec/it
-   "unmatches successfully"
-   (spec/should= :get (silk/unmatch (serve/request-method-pattern :get false) {}))
-   (spec/should= nil (silk/unmatch (serve/request-method-pattern :get true) {}))))
-
- (spec/context
-  "serve/method and serve/?method"
-  (spec/with-all post-ptrn (serve/request-method-pattern :post false))
-  (spec/with-all ?post-ptrn (serve/request-method-pattern :post true))
-  (spec/with-all get-in-url (fn [m] (get-in m [:request :request-method])))
-  (spec/it
-   "associates request-method-pattern into URL map"
-   (spec/should= @post-ptrn
-                 (@get-in-url (serve/method :post [["a" "b"]])))
-   (spec/should= @?post-ptrn
-                 (@get-in-url (serve/?method :post [["a" "b"]])))
-   (spec/should= @?post-ptrn
-                 (@get-in-url (serve/?method :post {}))))))
+ (spec/it
+  "matches successfully"
+  (spec/should= {} (silk/match serve/GET :get))
+  (spec/should= {} (silk/match (serve/GET) {:request-method :get}))
+  (spec/should= {} (silk/match (serve/GET {}) {:request-method :get}))
+  (spec/should= {} (silk/match serve/?GET nil)))
+ (spec/it
+  "matches unsuccessfully"
+  (spec/should-be-nil (silk/match serve/?GET :post)))
+ (spec/it
+  "unmatches successfully"
+  (spec/should= :get (silk/unmatch serve/GET {})))
+ (spec/it
+  "unmatches unsuccessfully"
+  (spec/should= :get (silk/unmatch serve/GET {}))))
