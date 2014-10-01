@@ -1,5 +1,5 @@
 (ns domkm.silk
-  (:refer-clojure :exclude [int])
+  (:refer-clojure :exclude [int cat])
   (:require [clojure.string :as str]
             #+clj [clojure.core :as core]
             #+cljs [cljs.core :as core])
