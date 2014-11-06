@@ -336,15 +336,15 @@
 
 (deftype Route [name pattern]
   Pattern
-  (-match [this url]
-          (when-let [params (match pattern url)]
+  (-match [this -url]
+          (when-let [params (match pattern (url -url))]
             (assoc params ::name name ::pattern pattern)))
   (-unmatch [this params]
             (->> (dissoc params ::name ::pattern)
                  (unmatch pattern)
                  url))
   (-match-validator [_]
-                    url?)
+                    map?)
   (-unmatch-validators [_]
                        {})
   ; so much for portable code :'(
@@ -369,17 +369,18 @@
 
 (deftype Routes [routes-seq routes-map]
   Pattern
-  (-match [this url]
-          (some (fn [route]
-                  (when-let [params (match route url)]
-                    (assoc params ::routes this ::url url)))
-                routes-seq))
+  (-match [this -url]
+          (let [u (url -url)]
+            (some (fn [route]
+                    (when-let [params (match route u)]
+                      (assoc params ::routes this ::url u)))
+                  routes-seq)))
   (-unmatch [this {nm ::name :as params}]
             (assert (and (some? nm)
                          (contains? routes-map nm)))
             (unmatch (get routes-map nm) (dissoc params ::routes ::url)))
   (-match-validator [_]
-                    url?)
+                    map?)
   (-unmatch-validators [_]
                        {}))
 

@@ -275,6 +275,9 @@
    (spec/should= {:method :get}
                  (@clean-params
                   (silk/match @routes (silk/url {:request-method :get}))))
+   (spec/should= {:method :get}
+                 (@clean-params
+                  (silk/match @routes {:request-method :get})))
    (spec/should= {:baz "baz"}
                  (@clean-params
                   (silk/match @routes (silk/map->URL {:path ["foo" "bar" "baz"]}))))
