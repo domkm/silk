@@ -1,4 +1,4 @@
-(defproject com.domkm/silk "0.0.3"
+(defproject com.domkm/silk "0.0.4"
 
   :description "Clojure[Script] Routing"
 
@@ -20,10 +20,13 @@
 
   :profiles {:dev {:dependencies [[ring-mock "0.1.5"]
                                   [speclj "3.1.0"]]
-                   :plugins [[com.keminglabs/cljx "0.4.0"]
+                   :plugins [[com.keminglabs/cljx "0.5.0"]
                              [lein-cljsbuild "1.0.3"]
                              [lein-pdo "0.1.1"]
-                             [speclj "3.1.0"]]}}
+                             [speclj "3.1.0"]]
+                   :prep-tasks [["cljx" "once"] "javac" "compile"]
+                   :auto-clean false
+                   :aliases {"deploy" ["do" "clean," "cljx" "once," "deploy" "clojars"]}}}
 
   :aliases {"dev" ["do"
                    "clean,"
@@ -32,8 +35,6 @@
                     "cljx" "auto,"
                     "cljsbuild" "auto,"
                     "spec" "--autotest"]]}
-
-  :hooks [cljx.hooks]
 
   :cljx {:builds [{:source-paths ["src"], :output-path "target/src", :rules :clj}
                   {:source-paths ["src"], :output-path "target/src", :rules :cljs}
