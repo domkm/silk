@@ -19,12 +19,11 @@
                  [org.clojure/clojurescript "0.0-2322" :scope "provided"]]
 
   :profiles {:dev {:dependencies [[ring-mock "0.1.5"]
-                                  [speclj "3.1.0"]]}}
-
-  :plugins [[com.keminglabs/cljx "0.4.0"]
-            [lein-cljsbuild "1.0.3"]
-            [lein-pdo "0.1.1"]
-            [speclj "3.1.0"]]
+                                  [speclj "3.1.0"]]
+                   :plugins [[com.keminglabs/cljx "0.4.0"]
+                             [lein-cljsbuild "1.0.3"]
+                             [lein-pdo "0.1.1"]
+                             [speclj "3.1.0"]]}}
 
   :aliases {"dev" ["do"
                    "clean,"
