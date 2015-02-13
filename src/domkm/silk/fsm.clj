@@ -1,6 +1,7 @@
 (ns domkm.silk.fsm
-  (:refer-clojure :exclude [* + compile conj find not])
+  (:refer-clojure :exclude [* + compile conj cons find not])
   (:require [automat.core :as auto]
+            [automat.fsm :as fsm]
             [clojure.core :as core])
   (:import  [automat.fsm.IAutomaton]))
 
@@ -109,10 +110,20 @@
     (when accepted?
       value)))
 
-; TODO: Is there a better way to check if an automaton is optional?
-; TODO: Can we differentiate between maybe and kleene?
 (defn optional? [a]
-  (-> [::enter (-> a automaton :automaton) ::exit]
-      auto/compile
-      (auto/find nil [::enter ::exit])
-      :accepted?))
+  (let [a (-> a automaton :automaton)]
+    (boolean (get (fsm/accept a) (fsm/start a)))))
+
+(defn cons [x a]
+  {:pre [(valid-input? x)]}
+  (let [a (automaton a)
+        fsm (:automaton a)
+        optional? (get (fsm/accept fsm) (fsm/start fsm))
+        accept-states]
+    (assoc a
+      :automaton
+      (if optional?
+        (condp = (-> fsm fsm/accept count)
+          1 (auto/* fsm)
+          2 (auto/? fsm))
+        (auto/parse-automata [x fsm])))))
