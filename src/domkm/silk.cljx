@@ -51,13 +51,14 @@
   "Takes a query string.
   Returns a map of decoded query pairs."
   [^String s]
-  (when-not (str/blank? s)
+  (if-not (str/blank? s)
     (->> (str/split s #"[&;]")
          (reduce (fn [q pair]
                    (let [[k v] (map decode (str/split pair #"="))]
                      (assoc! q k v)))
                  (transient {}))
-         persistent!)))
+         persistent!)
+    {}))
 
 (defrecord URL [scheme user host port path query fragment] ; TODO: scheme, user, host, port, fragment
   Object
