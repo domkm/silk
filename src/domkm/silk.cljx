@@ -65,8 +65,9 @@
   (toString
    [this]
    (str (encode-path path)
-        (when query
-          (str "?" (encode-query query))))))
+        (let [query (remove (comp nil? val) query)]
+          (if (seq query)
+            (str "?" (encode-query query)))))))
 
 (defn url? [x]
   (instance? URL x))
@@ -308,23 +309,25 @@
       (-unmatch-validators [_]
                            validator))))
 
-(defn ? [ptrn default-params]
+(defn ? [ptrn & [default-params]]
   {:pre [(pattern? ptrn)
-         (unmatch ptrn default-params)]}
+         (or (not default-params) (unmatch ptrn default-params))]}
   (reify
     Pattern
     (-match [_ that]
             (if (nil? that)
-              default-params
+              (or default-params {ptrn nil})
               (match ptrn that)))
     (-unmatch [_ params]
-              (unmatch ptrn
-                       (merge-with (fn [pval dval]
-                                     (if (nil? pval)
-                                       dval
-                                       pval))
-                                   params
-                                   default-params)))
+              (let [r (unmatch ptrn
+                               (merge-with (fn [pval dval]
+                                             (if (nil? pval)
+                                               dval
+                                               pval))
+                                           params
+                                           (or default-params {ptrn ::optional-key-has-no-value})))]
+                (if-not (= ::optional-key-has-no-value r)
+                  r)))
     (-match-validator [_]
                       (some-fn nil? (match-validator ptrn)))
     (-unmatch-validators [_]
