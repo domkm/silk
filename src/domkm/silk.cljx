@@ -183,12 +183,10 @@
                        {}))
 
 (defn ^:private unmatch-map [ptrn params]
-  (loop [kvs (seq ptrn)
-         ret (transient {})]
-    (if-let [[k v] (first kvs)]
-      (recur (rest kvs)
-             (assoc! ret k (unmatch v params)))
-      (persistent! ret))))
+  (persistent!
+    (reduce-kv (fn [acc k v]
+                 (assoc! acc k (unmatch v params)))
+               (transient {}) ptrn)))
 
 (extend-type PersistentArrayMap
   Pattern
