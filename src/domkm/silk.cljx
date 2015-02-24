@@ -5,22 +5,31 @@
             #+cljs [cljs.core :as core])
   #+clj
   (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
+           [java.lang String]
            [java.util UUID]))
 
 
 ;;;; URL ;;;;
 
-(defn ^String encode [^String s]
-  (-> s
-      #+clj (java.net.URLEncoder/encode "UTF-8")
-      #+clj (str/replace #"\+" "%20")
-      #+cljs js/encodeURIComponent
-      #+cljs (str/replace #"[!'()]" js/escape)
-      #+cljs (str/replace #"~" "%7E")))
+(defprotocol EncodeURI
+  (encode [this]))
 
-(defn ^String decode [s]
-  #+clj (java.net.URLDecoder/decode s "UTF-8")
-  #+cljs (js/decodeURIComponent s))
+(defprotocol DecodeURI
+  (decode [this]))
+
+(extend-protocol EncodeURI
+  #+clj String
+  #+clj (encode [this] (-> (java.net.URLEncoder/encode this "UTF-8")
+                           (str/replace #"\+" "%20")))
+  #+cljs string
+  #+cljs (encode [this] (-> (js/encodeURIComponent this)
+                            (str/replace #"[!'()]" js/escape)
+                            (str/replace #"~" "%7E"))))
+(extend-protocol DecodeURI
+  #+clj String
+  #+clj (decode [this] (java.net.URLDecoder/decode this "UTF-8"))
+  #+cljs string
+  #+cljs (decode [this] (js/decodeURIComponent this)))
 
 (defn encode-path
   "Takes a path seqable.
