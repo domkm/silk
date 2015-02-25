@@ -95,7 +95,8 @@
   (-match [this that])
   (-unmatch [this params])
   (-match-validator [this])
-  (-unmatch-validators [this]))
+  (-unmatch-validators [this])
+  (-create-default [this v]))
 
 (defn pattern? [x]
   (satisfies? Pattern x))
@@ -134,6 +135,10 @@
    :post [(match-valid? ptrn %)]}
   (-unmatch ptrn params))
 
+(defn create-default
+  ([ptrn] (create-default ptrn nil))
+  ([ptrn v] (-create-default ptrn v)))
+
 
 ;;;; Native Patterns ;;;;
 
@@ -158,7 +163,9 @@
   (-match-validator [_]
                     some?)
   (-unmatch-validators [this]
-                       {this some?}))
+                       {this some?})
+  (-create-default [this v]
+    {this v}))
 
 (defn ^:private match-coll [ks %1s %2s]
   (loop [ks ks
@@ -229,13 +236,16 @@
                    deserialize
                    (hash-map param-key)))
   (-unmatch [_ params]
-            (->> param-key
-                 (get params)
-                 serialize))
+    (let [v (get params param-key)]
+      (if (= v ::optional-key-has-no-value)
+        v
+        (serialize v))))
   (-match-validator [_]
-                    string?)
+                    #(or (= % ::optional-key-has-no-value) (string? %)))
   (-unmatch-validators [_]
-                       {param-key validate}))
+                       {param-key #(or (= % ::optional-key-has-no-value) (validate %))})
+  (-create-default [_ v]
+    (create-default param-key v)))
 
 (defn regex
   ([k re]
@@ -316,7 +326,7 @@
     Pattern
     (-match [_ that]
             (if (nil? that)
-              (or default-params {ptrn nil})
+              (or default-params (create-default ptrn))
               (match ptrn that)))
     (-unmatch [_ params]
               (let [r (unmatch ptrn
@@ -325,7 +335,7 @@
                                                dval
                                                pval))
                                            params
-                                           (or default-params {ptrn ::optional-key-has-no-value})))]
+                                           (or default-params (create-default ptrn ::optional-key-has-no-value))))]
                 (if-not (= ::optional-key-has-no-value r)
                   r)))
     (-match-validator [_]
