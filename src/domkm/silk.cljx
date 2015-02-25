@@ -101,10 +101,16 @@
 (defn pattern? [x]
   (satisfies? Pattern x))
 
+(defn- optional-value-is-allowed [validator]
+  (fn [x]
+    (if (= x ::optional-key-has-no-value)
+      true
+      (validator x))))
+
 (defn match-validator [ptrn]
   {:pre [(pattern? ptrn)]
    :post [(fn? %)]}
-  (-match-validator ptrn))
+  (optional-value-is-allowed (-match-validator ptrn)))
 
 (defn unmatch-validators [ptrn]
   {:pre [(pattern? ptrn)]
@@ -241,9 +247,9 @@
         v
         (serialize v))))
   (-match-validator [_]
-                    #(or (= % ::optional-key-has-no-value) (string? %)))
+                    string?)
   (-unmatch-validators [_]
-                       {param-key #(or (= % ::optional-key-has-no-value) (validate %))})
+                       {param-key (optional-value-is-allowed validate)})
   (-create-default [_ v]
     (create-default param-key v)))
 
