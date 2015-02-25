@@ -48,21 +48,32 @@
    (spec/should= (silk/encode-query @query-map) @query-str))
   (spec/it
    "decodes"
-   (spec/should= (silk/decode-query @query-str) @query-map)))
+   (spec/should= (silk/decode-query @query-str) @query-map))
+  (spec/it
+   "empty map produces no query-string"
+   (spec/should= (silk/encode-query {}) "")))
 
  (spec/context
   "parsing"
   (spec/it
    "parses urls"
-   (spec/should= (silk/map->URL {:path ["a"]})
+   (spec/should= (silk/map->URL {:path ["a"] :query {}})
                  (silk/url "/a"))
-   (spec/should= (silk/map->URL {:path ["a"]})
+   (spec/should= (silk/map->URL {:path ["a"] :query {}})
                  (silk/url "/a?"))
    (spec/should= (silk/map->URL {:path ["a"] :query {"b" "c"}})
                  (silk/url "/a?b=c"))
    (spec/should= (silk/map->URL {:query {"b" "c"} :path []})
-                 (silk/url "?b=c")))))
+                 (silk/url "?b=c"))))
 
+ (spec/context
+   "toString"
+   (spec/it
+     "Encodes urls"
+     (spec/should= "/users?q=foo"
+                 (.toString (silk/map->URL {:path ["users"] :query {"q" "foo"}})))
+     (spec/should= "/users"
+                   (.toString (silk/map->URL {:path ["users"] :query {"q" nil}}))))))
 
 ;;;; Pattern ;;;;
 
@@ -267,7 +278,9 @@
   (spec/with-all routes
     (silk/routes [[:id1 [nil nil {:request-method :method}]]
                   (silk/routes [[:id2 [["foo" "bar" :baz]]]])
-                  [:id3 [nil {"a" :b}]]]))
+                  [:id3 [nil {"a" :b}]]
+                  [:id4 [["search"] {"q" (silk/? :q {:q "default"})}]]
+                  [:id5 [["users"] {"q" (silk/? :q)}]]]))
   (spec/with-all clean-params
     #(dissoc % :domkm.silk/routes :domkm.silk/url :domkm.silk/pattern :domkm.silk/name))
   (spec/it
@@ -301,10 +314,30 @@
                   (silk/arrive @routes "/foo/bar/baz")))
    (spec/should= {:b "b"}
                  (@clean-params
-                  (silk/arrive @routes "/?a=b"))))
+                  (silk/arrive @routes "/?a=b")))
+   (spec/should= {:q "foo"}
+                 (@clean-params
+                  (silk/arrive @routes "/search?q=foo")))
+   (spec/should= {:q "default"}
+                 (@clean-params
+                  (silk/arrive @routes "/search")))
+   (spec/should= {:q nil}
+                 (@clean-params
+                  (silk/arrive @routes "/users")))
+   (spec/should= {:q "bar"}
+                 (@clean-params
+                  (silk/arrive @routes "/users?q=bar"))))
   (spec/it
    "departs"
    (spec/should= "/foo/bar/bloop"
                  (silk/depart @routes :id2 {:baz "bloop"}))
    (spec/should= "/?a=bloop"
-                 (silk/depart @routes :id3 {:b "bloop"})))))
+                 (silk/depart @routes :id3 {:b "bloop"}))
+   (spec/should= "/search?q=default"
+                 (silk/depart @routes :id4))
+   (spec/should= "/search?q=foo"
+                 (silk/depart @routes :id4 {:q "foo"}))
+   (spec/should= "/users"
+                 (silk/depart @routes :id5))
+   (spec/should= "/users?q=bar"
+                 (silk/depart @routes :id5 {:q "bar"})))))
