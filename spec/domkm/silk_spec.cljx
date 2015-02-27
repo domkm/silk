@@ -280,7 +280,8 @@
                   (silk/routes [[:id2 [["foo" "bar" :baz]]]])
                   [:id3 [nil {"a" :b}]]
                   [:id4 [["search"] {"q" (silk/? :q {:q "default"})}]]
-                  [:id5 [["users"] {"q" (silk/? :q)}]]]))
+                  [:id5 [["users"] {"q" (silk/? :q)}]]
+                  [:id6 [["test"] {"q" (silk/? (silk/int :q))}]]]))
   (spec/with-all clean-params
     #(dissoc % :domkm.silk/routes :domkm.silk/url :domkm.silk/pattern :domkm.silk/name))
   (spec/it
@@ -303,7 +304,9 @@
   (spec/it
    "unmatches successfully"
    (spec/should= (silk/map->URL {:query {"a" "c"}})
-                 (silk/unmatch @routes {:domkm.silk/name :id3 :b "c"})))
+                 (silk/unmatch @routes {:domkm.silk/name :id3 :b "c"}))
+   (spec/should= (silk/map->URL {:path ["test"] :query {"q" nil}})
+                 (silk/unmatch @routes {:domkm.silk/name :id6})))
   (spec/it
    "unmatches unsuccessfully"
    (spec/should-throw AssertionError  (silk/unmatch @routes {})))
@@ -326,7 +329,10 @@
                   (silk/arrive @routes "/users")))
    (spec/should= {:q "bar"}
                  (@clean-params
-                  (silk/arrive @routes "/users?q=bar"))))
+                  (silk/arrive @routes "/users?q=bar")))
+   (spec/should= {:q nil}
+                 (@clean-params
+                  (silk/arrive @routes "/test"))))
   (spec/it
    "departs"
    (spec/should= "/foo/bar/bloop"
@@ -340,4 +346,6 @@
    (spec/should= "/users"
                  (silk/depart @routes :id5))
    (spec/should= "/users?q=bar"
-                 (silk/depart @routes :id5 {:q "bar"})))))
+                 (silk/depart @routes :id5 {:q "bar"}))
+   (spec/should= "/test"
+                 (silk/depart @routes :id6)))))
