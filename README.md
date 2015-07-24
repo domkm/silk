@@ -1,4 +1,5 @@
 # Silk  [![Current Version](https://clojars.org/com.domkm/silk/latest-version.svg)](https://clojars.org/com.domkm/silk)
+[![Build Status](https://circleci.com/gh/DomKM/silk/tree/fsm.svg?style=svg)](https://circleci.com/gh/DomKM/silk)
 
 ### License
 
