@@ -4,15 +4,19 @@
 
 (defn ^String encode [^String s]
   (-> s
-      #+clj (java.net.URLEncoder/encode "UTF-8")
-      #+clj (str/replace #"\+" "%20")
-      #+cljs js/encodeURIComponent
-      #+cljs (str/replace #"[!'()]" js/escape)
-      #+cljs (str/replace #"~" "%7E")))
+      #?@(:clj
+          [(java.net.URLEncoder/encode "UTF-8")
+           (str/replace #"\+" "%20")]
+          :cljs
+          [js/encodeURIComponent
+           (str/replace #"[!'()]" js/escape)
+           (str/replace #"~" "%7E")])))
 
 (defn ^String decode [s]
-  #+clj (java.net.URLDecoder/decode s "UTF-8")
-  #+cljs (js/decodeURIComponent s))
+  #?(:clj
+     (java.net.URLDecoder/decode s "UTF-8")
+     :cljs
+     (js/decodeURIComponent s)))
 
 (defn encode-host [v]
   (str/join "." (reverse v)))

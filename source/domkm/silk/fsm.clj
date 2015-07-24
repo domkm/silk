@@ -118,12 +118,11 @@
   {:pre [(valid-input? x)]}
   (let [a (automaton a)
         fsm (:automaton a)
-        optional? (get (fsm/accept fsm) (fsm/start fsm))
-        accept-states]
+        optional? (get (fsm/accept fsm) (fsm/start fsm))]
     (assoc a
-      :automaton
-      (if optional?
-        (condp = (-> fsm fsm/accept count)
-          1 (auto/* fsm)
-          2 (auto/? fsm))
-        (auto/parse-automata [x fsm])))))
+           :automaton
+           (if optional?
+             (condp = (-> fsm fsm/accept count)
+               1 (auto/* fsm)
+               2 (auto/? fsm))
+             (auto/parse-automata [x fsm])))))
