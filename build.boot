@@ -5,7 +5,9 @@
  :url "https://github.com/DomKM/silk"
  :scm {:url "https://github.com/DomKM/silk"}
  :license {"Eclipse Public License" "http://www.eclipse.org/legal/epl-v10.html"}
- :source-paths #{"source"})
+ :source-paths #{"source" "test-source"}
+ :resource-paths #{"source"}
+ :test-namespaces '#{domkm.silk-test})
 
 (merge-env!
  :dependencies
@@ -32,23 +34,17 @@
 
 (-> :version get-env bootlaces!)
 
-(defn ^:private set-test-env! []
-  (set-env! :source-paths #(conj % "test-source")
-            :test-namespaces '#{domkm.silk-test}))
-
 (deftask test-clj
   "Run the Clojure tests."
   []
-  (set-test-env!)
   (boot-test-clj/test :namespaces (get-env :test-namespaces)))
 
 (deftask test-cljs
   "Run the ClojureScript tests."
   []
-  (set-test-env!)
   (comp
    (boot-test-cljs/cljs-test-node-runner :namespaces (get-env :test-namespaces))
-   (cljs :pretty-print true
+   (cljs :optimizations :none
          :source-map true)
    (boot-test-cljs/run-cljs-test)))
 
