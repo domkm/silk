@@ -45,7 +45,8 @@
   []
   (comp
    (boot-test-cljs/cljs-test-node-runner :namespaces (get-env :test-namespaces))
-   (cljs :optimizations :none
+   (cljs :compiler-options {:warnings {:invalid-arithmetic false}} ; http://dev.clojure.org/jira/browse/CLJS-1419
+         :optimizations :none
          :source-map true)
    (boot-test-cljs/run-cljs-test)))
 
