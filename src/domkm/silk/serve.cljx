@@ -58,7 +58,11 @@
   (#+clj invoke #+cljs -invoke [this]
          {:request-method this})
   (#+clj invoke #+cljs -invoke [this url-ptrn]
-         (assoc (silk/url-pattern url-ptrn) :request-method this)))
+         (assoc (silk/url-pattern url-ptrn) :request-method this))
+  #+clj
+  (applyTo [this args]
+    (clojure.lang.AFn/applyToHelper this args)))
+
 
 (defmacro ^:private def-request-methods [mthds]
   (cons 'do
