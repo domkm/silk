@@ -1,5 +1,7 @@
 # Silk  [![Current Version](https://clojars.org/com.domkm/silk/latest-version.svg)](https://clojars.org/com.domkm/silk)
 
+[![Join the chat at https://gitter.im/DomKM/silk](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/DomKM/silk?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 ## Isomorphic Clojure[Script] Routing
 
 ### Design Goals and Solutions
