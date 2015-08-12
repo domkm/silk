@@ -7,7 +7,8 @@
  :license {"Eclipse Public License" "http://www.eclipse.org/legal/epl-v10.html"}
  :source-paths #{"source" "test-source"}
  :resource-paths #{"source"}
- :test-namespaces '#{domkm.silk-test})
+ :test-namespaces '#{domkm.silk-test
+                     domkm.silk.fsm-test})
 
 (merge-env!
  :dependencies
@@ -18,7 +19,7 @@
    [automat "0.2.0-alpha1"]
    [boot-cljs-test/node-runner "0.1.0" :scope "test"]
    [org.clojure/clojure "1.7.0" :scope "provided"]
-   [org.clojure/clojurescript "0.0-3308" :classifier "aot" :scope "provided"]
+   [org.clojure/clojurescript "1.7.107" :classifier "aot" :scope "provided"]
    [tonsky/boot-anybar "0.1.0" :scope "test"]
    ])
 
@@ -61,5 +62,6 @@
   (comp
    (watch)
    (anybar)
+   (speak)
    (test)
    (repl :server true)))
