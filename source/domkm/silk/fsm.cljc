@@ -30,11 +30,6 @@
 
 #?(:clj
    (extend-protocol CodePoints
-     (class (char-array 0))
-     (code-point-at [arr i]
-       (Character/codePointAt arr i))
-     (length [arr]
-       (alength arr))
      String
      (code-point-at [s i]
        (.codePointAt s i))
@@ -120,48 +115,26 @@
 
 (defn ^:private automat-fsm
   "Returns the Automat FSM associated with this Automaton."
-  [a]
-  {:pre [(fsm? a)]
+  [fsm]
+  {:pre [(fsm? fsm)]
    :post [(cond
-            (precompiled-fsm? a) (a.compiler/precompiled-automaton? %)
-            (compiled-fsm? a) (a.compiler/compiled-automaton? %)
+            (precompiled-fsm? fsm) (a.compiler/precompiled-automaton? %)
+            (compiled-fsm? fsm) (a.compiler/compiled-automaton? %)
             :else (a.fsm/automaton? %))]}
-  (if (satisfies? FSM a)
-    (-automat-fsm a)
-    (-> a code-points a.compiler/parse-automata)))
+  (if (satisfies? FSM fsm)
+    (-automat-fsm fsm)
+    (let [cps (code-points fsm)]
+      (assert (every? #(> % 31) cps) "Code points less than 32 are reserved for Silk.")
+      (a.compiler/parse-automata cps))))
 
 (defn ^:private captures
   "Returns a map of UUIDs to capture keys."
-  [a]
-  {:pre [(fsm? a)]
+  [fsm]
+  {:pre [(fsm? fsm)]
    :post [(map? %)]}
-  (if (satisfies? FSM a)
-    (-captures a)
+  (if (satisfies? FSM fsm)
+    (-captures fsm)
     {}))
-
-(defn fsm
-  ([a]
-   (if (fsm? a)
-     (fsm (automat-fsm a) (captures a))
-     (fsm a {})))
-  ([a capts]
-   {:pre [(or (and (fsm? a)
-                   (clj/not (precompiled-fsm? a))
-                   (clj/not (compiled-fsm? a)))
-              (a.fsm/automaton? a)
-              (code-points? a))
-          (map? capts)]}
-   (reify
-     FSM
-     (-automat-fsm [_]
-       (cond
-         (fsm? a) (automat-fsm a)
-         (code-points? a) (-> a code-points a.compiler/parse-automata)
-         (a.fsm/automaton? a) a))
-     (-captures [_]
-       (if (fsm? a)
-         (merge (captures a) capts)
-         capts)))))
 
 (defn precompile [fsm]
   {:pre [(fsm? fsm)]
@@ -245,10 +218,11 @@
           [etx (a/$ uuid)]))
        (-captures [_]
          {uuid k}))))
-  ([a k]
-   {:pre [(fsm? a)]}
-   (let [uuid (rand-uuid)
-         fsm (fsm a)]
+  ([fsm k]
+   {:pre [(fsm? fsm)
+          (-> fsm precompiled-fsm? clj/not)
+          (-> fsm compiled-fsm? clj/not)]}
+   (let [uuid (rand-uuid)]
      (reify
        FSM
        (-automat-fsm [_]
@@ -260,32 +234,39 @@
        (-captures [_]
          (assoc (captures fsm) uuid k))))))
 
-(defn ^:private wrap-automat-fsm [f & as]
-  (let [fsms (map fsm as)]
-    (reify
-      FSM
-      (-automat-fsm [_]
-        (apply f (map automat-fsm fsms)))
-      (-captures [_]
-        (reduce merge (map captures fsms))))))
+(defn ^:private wrap-automat-fsm [f & fsms]
+  {:pre [(every? #(and (fsm? %)
+                       (-> % precompiled-fsm? clj/not)
+                       (-> % compiled-fsm? clj/not))
+                 fsms)]}
+  (reify
+    FSM
+    (-automat-fsm [_]
+      (->> fsms
+           (map automat-fsm)
+           (apply f)))
+    (-captures [_]
+      (->> fsms
+           (map captures)
+           (reduce merge)))))
 
-(defn ? [a]
-  (wrap-automat-fsm a/? a))
+(defn ? [fsm]
+  (wrap-automat-fsm a/? fsm))
 
-(defn * [a]
-  (wrap-automat-fsm a/* a))
+(defn * [fsm]
+  (wrap-automat-fsm a/* fsm))
 
-(defn + [a]
-  (wrap-automat-fsm a/+ a))
+(defn + [fsm]
+  (wrap-automat-fsm a/+ fsm))
 
-(defn | [& as]
-  (apply wrap-automat-fsm a/or as))
+(defn | [& fsms]
+  (apply wrap-automat-fsm a/or fsms))
 
-(defn & [& as]
-  (apply wrap-automat-fsm a/and as))
+(defn & [& fsms]
+  (apply wrap-automat-fsm a/and fsms))
 
-(defn cat [& as]
-  (apply wrap-automat-fsm #(-> %& vec a.compiler/parse-automata) as))
+(defn cat [& fsms]
+  (apply wrap-automat-fsm #(-> %& vec a.compiler/parse-automata) fsms))
 
 (defn not [char]
   {:pre [(code-points? char)
@@ -293,6 +274,6 @@
   (reify
     FSM
     (-automat-fsm [_]
-      (a/not (code-point-at char 0)))
+      (-> char automat-fsm a/not))
     (-captures [_]
       {})))
