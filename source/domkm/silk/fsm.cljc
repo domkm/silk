@@ -103,7 +103,8 @@
   (-captures [_] captures))
 
 (defn fsm? [x]
-  (satisfies? FSM x))
+  (or (satisfies? FSM x)
+      (code-points? x)))
 
 (defn precompiled-fsm? [x]
   (instance? PrecompiledFSM x))
@@ -119,7 +120,9 @@
             (precompiled-fsm? a) (a.compiler/precompiled-automaton? %)
             (compiled-fsm? a) (a.compiler/compiled-automaton? %)
             :else (a.fsm/automaton? %))]}
-  (-automat-fsm a))
+  (if (satisfies? FSM a)
+    (-automat-fsm a)
+    (-> a code-points a.compiler/parse-automata)))
 
 (defn ^:private captures
   "Returns a map of UUIDs to capture keys."
@@ -128,7 +131,9 @@
    :post [(map? %)
           (every? keyword? (keys %))
           (every? sequential? (vals %))]}
-  (-captures a))
+  (if (satisfies? FSM a)
+    (-captures a)
+    {}))
 
 (defn fsm
   ([a]
@@ -273,7 +278,7 @@
   (apply wrap-automat-fsm #(-> %& vec a.compiler/parse-automata) as))
 
 (defn not [char]
-  {:pre [(code-points? chars)
+  {:pre [(code-points? char)
          (= (length char) 1)]}
   (reify
     FSM
