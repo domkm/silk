@@ -21,6 +21,6 @@
     (fsm/+ "a") "aaaa" {}
     (fsm/| "a" "b") "a" {}
     (fsm/cat "a" (fsm/? "b")) "ab" {}
-    (fsm/capture "foo" [:foo]) "foo" {:foo "foo"}
-    (fsm/capture "foobar" [:foo :bar]) "foobar" {:foo {:bar "foobar"}}
-    (fsm/capture (fsm/fsm "foo") [:foo]) "bar" nil))
+    (fsm/capture "foo" :foo) "foo" {:foo "foo"}
+    (fsm/capture "foobar" :foobar) "foobar" {:foobar "foobar"}
+    (fsm/capture (fsm/fsm "foo") :foo) "bar" nil))

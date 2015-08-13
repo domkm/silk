@@ -66,7 +66,13 @@
   (mapv (partial code-point-at cps)
         (-> cps length range)))
 
-(def ^:private ^:const eot 4)
+(def ^:private ^:const stx
+  "Start of Text"
+  2)
+
+(def ^:private ^:const etx
+  "End of Text"
+  3)
 
 (defn ^:private automat-input-stream
   "Takes something that satisfies `CodePoints'.
@@ -84,7 +90,7 @@
                         (code-point-at chars i))
             (= i len) (do
                         (vswap! idx inc)
-                        eot)
+                        etx)
             (> i len) eof)))
       #?(:clj (nextNumericInput [_ eof] (.nextInput _ eof))))))
 
@@ -128,9 +134,7 @@
   "Returns a map of UUIDs to capture keys."
   [a]
   {:pre [(fsm? a)]
-   :post [(map? %)
-          (every? keyword? (keys %))
-          (every? sequential? (vals %))]}
+   :post [(map? %)]}
   (if (satisfies? FSM a)
     (-captures a)
     {}))
@@ -146,9 +150,7 @@
                    (clj/not (compiled-fsm? a)))
               (a.fsm/automaton? a)
               (code-points? a))
-          (map? capts)
-          (every? keyword? (keys capts))
-          (every? sequential? (vals capts))]}
+          (map? capts)]}
    (reify
      FSM
      (-automat-fsm [_]
@@ -178,7 +180,7 @@
   (let [sb (if (nil? sb)
              (new StringBuilder)
              sb)]
-    (if (== input eot)
+    (if (== input etx)
       (.toString sb)
       (.append sb (char input)))))
 
@@ -216,39 +218,47 @@
          (code-points? cps)]}
   (let [{:keys [accepted? value]} (a/find (automat-fsm fsm)
                                           (transient {})
-                                          (automat-input-stream cps))
-        captured (persistent! value)]
+                                          (automat-input-stream cps))]
     (when accepted?
-      (reduce
-       (fn [m [uuid ks]]
-         (let [s (get captured uuid)]
+      (let [captured (persistent! value)
+            captures (captures fsm)]
+        (reduce
+         (fn [m [uuid s]]
            (if (string? s)
-             (update-in m ks #(if %
-                                (->> {:keys ks
-                                      :vals [% s]}
-                                     (ex-info "Capture keys must be unique.")
-                                     throw)
-                                s))
-             m)))
-       {}
-       (sort-by #(-> % val count)
-                #(compare %2 %1)
-                (captures fsm))))))
+             (let [k (get captures uuid)]
+               (if (contains? m k)
+                 (->> {:key k}
+                      (ex-info (str "Duplicate capture key: " k))
+                      throw)
+                 (assoc m k s)))
+             m))
+         {}
+         captured)))))
 
-(defn capture [a ks]
-  {:pre [(sequential? ks)]}
-  (let [uuid (rand-uuid)
-        fsm (fsm a)]
-    (reify
-      FSM
-      (-automat-fsm [_]
-        (a.compiler/parse-automata
-         [(->> fsm automat-fsm (a/interpose-$ uuid))
-          (-> eot a/not a/*)
-          eot
-          (a/$ uuid)]))
-      (-captures [_]
-        (assoc (captures fsm) uuid ks)))))
+(defn capture
+  ([k]
+   (let [uuid (rand-uuid)]
+     (reify
+       FSM
+       (-automat-fsm [_]
+         (a.compiler/parse-automata
+          [etx (a/$ uuid)]))
+       (-captures [_]
+         {uuid k}))))
+  ([a k]
+   {:pre [(fsm? a)]}
+   (let [uuid (rand-uuid)
+         fsm (fsm a)]
+     (reify
+       FSM
+       (-automat-fsm [_]
+         (a.compiler/parse-automata
+          [(->> fsm automat-fsm (a/interpose-$ uuid))
+           (-> etx a/not a/*)
+           etx
+           (a/$ uuid)]))
+       (-captures [_]
+         (assoc (captures fsm) uuid k))))))
 
 (defn ^:private wrap-automat-fsm [f & as]
   (let [fsms (map fsm as)]
