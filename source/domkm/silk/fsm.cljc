@@ -23,44 +23,6 @@
       str
       keyword))
 
-(defprotocol CodePoints
-  "Represents multiple code points."
-  (code-point-at [obj i])
-  (length [obj]))
-
-#?(:clj
-   (extend-protocol CodePoints
-     String
-     (code-point-at [s i]
-       (.codePointAt s i))
-     (length [s]
-       (.length s))
-     Character
-     (code-point-at [c i]
-       (if (= i 0)
-         (int c)
-         (throw (IndexOutOfBoundsException.))))
-     (length [c]
-       1))
-   :cljs
-   (extend-protocol CodePoints
-     string
-     (code-point-at [s i]
-       (.charCodeAt s i))
-     (length [s]
-       (.-length s))))
-
-(defn ^:private code-points? [x]
-  (satisfies? CodePoints x))
-
-(defn ^:private code-points
-  "Takes something that satisfies `CodePoints'.
-  Returns a vector of code points integers."
-  [cps]
-  {:pre [(code-points? cps)]}
-  (mapv (partial code-point-at cps)
-        (-> cps length range)))
-
 (def ^:private ^:const stx
   "Start of Text"
   2)
@@ -68,26 +30,6 @@
 (def ^:private ^:const etx
   "End of Text"
   3)
-
-(defn ^:private automat-input-stream
-  "Takes something that satisfies `CodePoints'.
-  Returns an Automat `InputStream'."
-  [chars]
-  {:pre [(code-points? chars)]}
-  (let [idx (volatile! 0)
-        len (length chars)]
-    (reify InputStream
-      (nextInput [_ eof]
-        (let [i @idx]
-          (cond
-            (< i len) (do
-                        (vswap! idx inc)
-                        (code-point-at chars i))
-            (= i len) (do
-                        (vswap! idx inc)
-                        etx)
-            (> i len) eof)))
-      #?(:clj (nextNumericInput [_ eof] (.nextInput _ eof))))))
 
 (defprotocol ^:private FSM
   (^:private -automat-fsm [fsm])
@@ -103,9 +45,36 @@
   (-automat-fsm [_] automat-fsm)
   (-captures [_] captures))
 
+(defn ^:private validate-code-point [cp]
+  (assert (< 31 cp) (str "Code points less than 32 are reserved for Silk. Got: " cp))
+  cp)
+
+(extend-protocol FSM
+  #?(:clj String :cljs string)
+  (-automat-fsm [s]
+    (->> s
+         count
+         range
+         (mapv (fn [^Integer i]
+                 (validate-code-point
+                  #?(:clj
+                     (.codePointAt s i)
+                     :cljs
+                     (.charCodeAt s i)))))
+         a.compiler/parse-automata))
+  (-captures [_]
+    {}))
+
+#?(:clj
+   (extend-protocol FSM
+     Character
+     (-automat-fsm [c]
+       (-> c int validate-code-point))
+     (-captures [_]
+       {})))
+
 (defn fsm? [x]
-  (or (satisfies? FSM x)
-      (code-points? x)))
+  (satisfies? FSM x))
 
 (defn precompiled-fsm? [x]
   (instance? PrecompiledFSM x))
@@ -121,20 +90,14 @@
             (precompiled-fsm? fsm) (a.compiler/precompiled-automaton? %)
             (compiled-fsm? fsm) (a.compiler/compiled-automaton? %)
             :else (a.fsm/automaton? %))]}
-  (if (satisfies? FSM fsm)
-    (-automat-fsm fsm)
-    (let [cps (code-points fsm)]
-      (assert (every? #(> % 31) cps) "Code points less than 32 are reserved for Silk.")
-      (a.compiler/parse-automata cps))))
+  (-automat-fsm fsm))
 
 (defn ^:private captures
   "Returns a map of UUIDs to capture keys."
   [fsm]
   {:pre [(fsm? fsm)]
    :post [(map? %)]}
-  (if (satisfies? FSM fsm)
-    (-captures fsm)
-    {}))
+  (-captures fsm))
 
 (defn precompile [fsm]
   {:pre [(fsm? fsm)]
@@ -183,15 +146,24 @@
     :else (-> fsm precompile compile)))
 
 (defn match
-  "Takes a `CompiledFSM' and something that satisfies `CodePoints'.
+  "Takes a `CompiledFSM' and a `String'.
   On match, returns a nested map where the keys are capture keys and the vals are captured strings.
   Otherwise returns `nil'."
-  [^CompiledFSM fsm cps]
+  [^CompiledFSM fsm ^String s]
   {:pre [(instance? CompiledFSM fsm)
-         (code-points? cps)]}
-  (let [{:keys [accepted? value]} (a/find (automat-fsm fsm)
+         (string? s)]}
+  (let [s (str s (char etx))
+        arr #?(:clj
+               (-> ^String s .codePoints .toArray)
+               :cljs
+               (let [len (.-length s)
+                     a (make-array len)]
+                 (doseq [i (range len)]
+                   (aset a i (.charCodeAt s i)))
+                 a))
+        {:keys [accepted? value]} (a/find (automat-fsm fsm)
                                           (transient {})
-                                          (automat-input-stream cps))]
+                                          arr)]
     (when accepted?
       (let [captured (persistent! value)
             captures (captures fsm)]
@@ -269,8 +241,9 @@
   (apply wrap-automat-fsm #(-> %& vec a.compiler/parse-automata) fsms))
 
 (defn not [char]
-  {:pre [(code-points? char)
-         (= (length char) 1)]}
+  {:pre [(or #?(:clj (char? char))
+             (and (string? char)
+                  (= (count char) 1)))]}
   (reify
     FSM
     (-automat-fsm [_]
