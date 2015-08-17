@@ -71,4 +71,7 @@
   (spec/should= :get (silk/unmatch serve/GET {})))
  (spec/it
   "unmatches unsuccessfully"
-  (spec/should= :get (silk/unmatch serve/GET {}))))
+  (spec/should= :get (silk/unmatch serve/GET {})))
+ (spec/it
+  "can be def'd"
+  (spec/should-not-throw (def a-post-request-pattern (serve/POST)))))
