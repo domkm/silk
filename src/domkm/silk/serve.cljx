@@ -32,9 +32,10 @@
   ([routes get-handler]
    (let [rtes (silk/routes routes)]
      (fn [req]
-       (when-let [params (silk/match rtes (request-map->URL req))]
+       (if-let [params (silk/match rtes (request-map->URL req))]
          ((-> params :domkm.silk/name get-handler)
-          (assoc req :params params)))))))
+          (assoc req :params params))
+         ((get-handler nil) req))))))
 
 
 ;;;; Request Method Pattern ;;;;

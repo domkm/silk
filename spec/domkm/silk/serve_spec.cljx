@@ -27,9 +27,9 @@
   (spec/context
    "no match"
    (spec/it
-    "returns nil"
-    (spec/should-be-nil ((serve/ring-handler {:never-route {:path ["nope"]}})
-                         @req))))
+    "calls get-handler with nil route"
+    (spec/should= @req
+                  ((serve/ring-handler {:never-route {:path ["nope"]}} #(fnil identity %)) @req))))
   (spec/context
    "match and `get-handler` is provided"
    (spec/with-all ring-handler (serve/ring-handler
