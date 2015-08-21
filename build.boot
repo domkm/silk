@@ -8,7 +8,7 @@
  :source-paths #{"source" "test-source"}
  :resource-paths #{"source"}
  :test-namespaces '#{domkm.silk-test
-                     domkm.silk.fsm-test})
+                     domkm.silk.pattern-test})
 
 (merge-env!
  :dependencies
