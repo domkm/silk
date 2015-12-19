@@ -111,13 +111,13 @@ If the second element is a vector, the first and second elements are `assoc`iate
 If the second element is a map, it is left unchanged.
 
 ```clojure
-(silk/url-pattern [["i" "am" "a" "path"] {"i" "am" "a" "query"} {:scheme "https"}])
-;=> {:path ["i" "am" "a" "path"], :query {"i" "am", "a" "query"}, :scheme "https"}
+(silk/url-pattern [["users" "list"] {"filter" :filter "limit" :limit} {:scheme "https"}])
+;=> {:path ["users" "list"], :query {"filter" :filter, "limit" :limit}, :scheme "https"}
 
-(silk/url-pattern {:path ["i" "am" "a" "path"] :query {"i" "am" "a" "query"} :scheme "https"})
-;=> {:path ["i" "am" "a" "path"], :query {"i" "am", "a" "query"}, :scheme "https"}
+(silk/url-pattern {:path ["users" "list"] :query {"filter" :filter "limit" :limit} :scheme "https"})
+;=> {:path ["users" "list"], :query {"filter" :filter, "limit" :limit}, :scheme "https"}
 
-(silk/route [:route-name [["i" "am" "a" "path"] {"i" "am" "a" "query"} {:scheme "https"}]])
+(silk/route [:route-name [["users" "list"] {"filter" :filter "limit" :limit} {:scheme "https"}]])
 ;=> #<Route domkm.silk.Route@6ebe4324>
 ```
 
