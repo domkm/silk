@@ -1,7 +1,7 @@
 *.class
 *.jar
 /.lein-*
-/.nrepl-port
+/.nrepl-*
 /checkouts
 /classes
 /lib
