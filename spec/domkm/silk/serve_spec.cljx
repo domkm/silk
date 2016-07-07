@@ -41,11 +41,14 @@
                   (-> @req
                       (@ring-handler)
                       :params
-                      (select-keys [:username :project])))
-    (spec/should= @req
+                      (select-keys [:username :project]))))
+   (spec/it
+    "won't override existing params in request"
+    (spec/should= "param"
                   (-> @req
+                      (assoc :params {:extra "param"})
                       (@ring-handler)
-                      (dissoc :params)))))
+                      (get-in [:params :extra])))))
   (spec/context
    "match and no `get-handler` provided"
    (spec/it
