@@ -34,7 +34,7 @@
      (fn [req]
        (if-let [params (silk/match rtes (request-map->URL req))]
          ((-> params :domkm.silk/name get-handler)
-          (merge-with merge req {:params params}))
+          (update req :params merge params))
          ((get-handler nil) req))))))
 
 
