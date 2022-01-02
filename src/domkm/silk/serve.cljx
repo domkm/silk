@@ -72,4 +72,4 @@
           `(def ~(->> mthd name str/upper-case (str (when opt? "?")) symbol)
              (~'RequestMethodPattern. ~mthd ~opt?)))))
 
-(def-request-methods #{:delete :get :head :options :post :put})
+(def-request-methods #{:delete :get :head :options :post :patch :put})
