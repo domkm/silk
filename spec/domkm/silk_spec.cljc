@@ -34,7 +34,11 @@
    (spec/should= (silk/encode-path []) "/"))
   (spec/it
    "decode"
-   (spec/should= (silk/decode-path @path-str) @path-vec)))
+   (spec/should= (silk/decode-path @path-str) @path-vec))
+  (spec/it
+   "decodes a literal plus according to the platform"
+   (spec/should= [#?(:clj "a b" :cljs "a+b") "a+b"]
+                 (silk/decode-path "/a+b/a%2Bb"))))
 
  (spec/context
   "query encoding/decoding"
@@ -46,6 +50,13 @@
   (spec/it
    "decodes"
    (spec/should= (silk/decode-query @query-str) @query-map))
+  (spec/it
+   "decodes a literal plus according to the platform"
+   (spec/should= {"q" #?(:clj "a b" :cljs "a+b"), "encoded" "a+b"}
+                 (silk/decode-query "q=a+b&encoded=a%2Bb")))
+  (spec/it
+   "keeps the last value for a repeated key"
+   (spec/should= {"q" "last"} (silk/decode-query "q=first&q=last")))
   (spec/it
    "empty map produces no query-string"
    (spec/should= (silk/encode-query {}) "")))
@@ -295,6 +306,14 @@
    (spec/should= {:b "b"}
                  (@clean-params
                   (silk/match @routes (silk/map->URL {:query {"a" "b"}})))))
+  (spec/it
+   "matches the first of two overlapping routes"
+   (let [by-id [:user [["users" :id]]]
+         new-user [:new-user [["users" "new"]]]]
+     (spec/should= :user
+                   (silk/arrive (silk/routes [by-id new-user]) "/users/new" ::silk/name))
+     (spec/should= :new-user
+                   (silk/arrive (silk/routes [new-user by-id]) "/users/new" ::silk/name))))
   (spec/it
    "matches unsuccessfully"
    (spec/should-be-nil (silk/match @routes (silk/map->URL {}))))

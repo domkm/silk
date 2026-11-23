@@ -26,7 +26,11 @@
    (spec/it
     "calls get-handler with nil route"
     (spec/should= @req
-                  ((serve/ring-handler {:never-route {:path ["nope"]}} #(fnil identity %)) @req))))
+                  ((serve/ring-handler {:never-route {:path ["nope"]}} {nil identity}) @req)))
+   (spec/it
+    "throws instead of returning a default response"
+    (spec/should-throw NullPointerException
+                       ((serve/ring-handler {:never-route {:path ["nope"]}}) @req))))
   (spec/context
    "match and `get-handler` is provided"
    (spec/with-all ring-handler (serve/ring-handler
