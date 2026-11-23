@@ -217,6 +217,8 @@ clojure -M:test:clj
 clojure -M:test:cljs && node target/cljs-tests.js
 ```
 
+Put shared specs in `.cljc` files under `spec/`. Both suites discover them automatically.
+
 ### Status
 
 Silk is very much a work-in-progress. Everything is subject to change.

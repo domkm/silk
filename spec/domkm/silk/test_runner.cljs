@@ -1,7 +1,5 @@
 (ns domkm.silk.test-runner
-  (:require [domkm.silk-spec]
-            [domkm.silk.serve-spec]
-            [speclj.report.progress :as progress]
+  (:require [speclj.report.progress :as progress]
             [speclj.run.standard :as standard]))
 
 (defn -main []
