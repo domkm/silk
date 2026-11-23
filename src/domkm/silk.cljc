@@ -1,26 +1,23 @@
 (ns domkm.silk
-  (:refer-clojure :exclude [int cat #+cljs uuid])
-  (:require [clojure.string :as str]
-            #+clj [clojure.core :as core]
-            #+cljs [cljs.core :as core])
-  #+clj
-  (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
-           [java.util UUID]))
+  (:refer-clojure :exclude [int cat #?(:cljs uuid)])
+  (:require [clojure.string :as str])
+  #?(:clj (:import [clojure.lang Keyword PersistentArrayMap PersistentHashMap PersistentVector]
+                   [java.util UUID])))
 
 
 ;;;; URL ;;;;
 
 (defn ^String encode [^String s]
   (-> s
-      #+clj (java.net.URLEncoder/encode "UTF-8")
-      #+clj (str/replace #"\+" "%20")
-      #+cljs js/encodeURIComponent
-      #+cljs (str/replace #"[!'()]" js/escape)
-      #+cljs (str/replace #"~" "%7E")))
+      #?@(:clj [(java.net.URLEncoder/encode "UTF-8")
+                (str/replace #"\+" "%20")]
+          :cljs [js/encodeURIComponent
+                 (str/replace #"[!'()]" js/escape)
+                 (str/replace #"~" "%7E")])))
 
 (defn ^String decode [s]
-  #+clj (java.net.URLDecoder/decode s "UTF-8")
-  #+cljs (js/decodeURIComponent s))
+  #?(:clj (java.net.URLDecoder/decode s "UTF-8")
+     :cljs (js/decodeURIComponent s)))
 
 (defn encode-path
   "Takes a path seqable.
@@ -148,7 +145,7 @@
 
 ;;;; Native Patterns ;;;;
 
-(extend-type #+clj String #+cljs string
+(extend-type #?(:clj String :cljs string)
   Pattern
   (-match [this that]
           (when (= this that)
@@ -274,19 +271,22 @@
          #"true|false"
          {:deserialize #(= "true" %)
           :serialize str
-          :validate #+clj #(instance? Boolean %) #+cljs #(identical? js/Boolean (type %))}))
+           :validate #?(:clj #(instance? Boolean %)
+                        :cljs #(identical? js/Boolean (type %)))}))
 
 (defn int [k]
   (regex k
          #"\d+"
-         {:deserialize #+clj #(Integer/parseInt %) #+cljs #(js/parseInt % 10)
+          {:deserialize #?(:clj #(Integer/parseInt %)
+                           :cljs #(js/parseInt % 10))
           :serialize str
           :validate integer?}))
 
 (defn uuid [k]
   (regex k
          #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-         {:deserialize #+clj #(UUID/fromString %) #+cljs ->UUID
+          {:deserialize #?(:clj #(UUID/fromString %)
+                           :cljs ->UUID)
           :serialize str
           :validate #(instance? UUID %)}))
 
@@ -297,13 +297,13 @@
                (apply distinct? pkeys)))]}
   (let [re-str #(list "("
                       (cond
-                       (string? %)
-                       (re-quote-replacement %),
-                       (instance? RegexPattern %)
-                       #+clj (-> % :regex str) ; clj (str #"re") => "re"
-                       #+cljs (let [s (-> % :regex str)] ; cljs (str #"re") => "/re/"
-                                (subs s 1 (-> s .-length dec))),
-                       :else ".*")
+                        (string? %)
+                        (re-quote-replacement %),
+                        (instance? RegexPattern %)
+                        #?(:clj (-> % :regex str) ; clj (str #"re") => "re"
+                           :cljs (let [s (-> % :regex str)] ; cljs (str #"re") => "/re/"
+                                   (subs s 1 (-> s .-length dec)))),
+                        :else ".*")
                       ")")
         re (->> ptrns
                 (mapcat re-str)
@@ -365,13 +365,12 @@
                     map?)
   (-unmatch-validators [_]
                        {})
-  ; so much for portable code :'(
-  #+clj java.util.Map$Entry
-  #+clj (getKey [_] name)
-  #+clj (getValue [_] pattern)
-  #+cljs IMapEntry
-  #+cljs (-key [_] name)
-  #+cljs (-val [_] pattern))
+  #?@(:clj [java.util.Map$Entry
+            (getKey [_] name)
+            (getValue [_] pattern)]
+      :cljs [IMapEntry
+             (-key [_] name)
+             (-val [_] pattern)]))
 
 (defn route? [x]
   (instance? Route x))

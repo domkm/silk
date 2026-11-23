@@ -1,0 +1,11 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
+ :aliases
+ {:test {:extra-paths ["spec"]
+         :extra-deps {speclj/speclj {:mvn/version "3.13.1"}}}
+  :clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
+        :main-opts ["-m" "speclj.main" "spec"]}
+  :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.145"}}
+         :main-opts ["-m" "cljs.main" "-t" "node"
+                     "-d" "target/cljs-tests" "-o" "target/cljs-tests.js"
+                     "-c" "domkm.silk.test-runner"]}}}

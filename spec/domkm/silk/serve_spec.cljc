@@ -1,14 +1,11 @@
 (ns domkm.silk.serve-spec
   (:require [domkm.silk :as silk]
             [domkm.silk.serve :as serve]
-            #+clj [ring.mock.request :refer [request]]
-            [speclj.core :as spec #+cljs :include-macros #+cljs true])
-  #+clj
-  (:import [clojure.lang ExceptionInfo]))
+            #?(:clj [ring.mock.request :refer [request]])
+            [speclj.core :as spec #?@(:cljs [:include-macros true])]))
 
 
-#+clj
-(spec/describe
+#?(:clj (spec/describe
  "ring functionality"
  (spec/with-all req (request :get "http://github.com/domkm/silk/pulls?q=awesome"))
  (spec/context
@@ -53,7 +50,7 @@
     (spec/should= "silk"
                   ((serve/ring-handler {#(get-in % [:params :project])
                                         [[:username :project "pulls"]]})
-                   @req))))))
+                    @req)))))))
 
 (spec/describe
  "serve/RequestMethodPattern"

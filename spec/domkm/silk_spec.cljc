@@ -1,14 +1,11 @@
 (ns domkm.silk-spec
   (:require [domkm.silk :as silk]
-            [speclj.core :as spec #+cljs :include-macros #+cljs true])
-  #+clj
-  (:import [clojure.lang ExceptionInfo]))
+            [speclj.core :as spec #?@(:cljs [:include-macros true])]))
 
 
 ;;;; Helpers ;;;;
 
-#+cljs
-(def ^:private AssertionError js/Error)
+#?(:cljs (def ^:private AssertionError js/Error))
 
 
 ;;;; URL ;;;;
