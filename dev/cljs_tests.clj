@@ -1,14 +1,16 @@
-(require '[cljs.build.api :as build]
-         '[clojure.java.io :as io])
+(require '[cljs.build.api :as build] '[clojure.java.io :as io])
 
-(defn spec-namespace [{:keys [ns source-file]}]
+(defn spec-namespace
+  [{:keys [ns source-file]}]
   (let [resource (build/ns->source ns)]
     (when-not (and resource
                    (= "file" (.getProtocol resource))
                    (= (.getCanonicalFile source-file)
                       (.getCanonicalFile (io/file resource))))
       (throw (ex-info (str source-file " does not resolve as " ns)
-                      {:file source-file :namespace ns :resource resource})))
+                      {:file source-file
+                       :namespace ns
+                       :resource resource})))
     ns))
 
 (let [runner 'domkm.silk.test-runner
