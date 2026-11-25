@@ -33,16 +33,16 @@
   (spec/context "query encoding/decoding"
     (spec/with-all query-str "baz=qux&foo=bar")
     (spec/with-all query-map
-                   {"foo" "bar"
-                    "baz" "qux"})
+                   {"baz" "qux",
+                    "foo" "bar"})
     (spec/it "encodes"
       (spec/should= (silk/encode-query @query-map) @query-str))
     (spec/it "decodes"
       (spec/should= (silk/decode-query @query-str) @query-map))
     (spec/it "decodes a literal plus according to the platform"
-      (spec/should= {"q" #?(:clj "a b"
-                            :cljs "a+b")
-                     "encoded" "a+b"}
+      (spec/should= {"encoded" "a+b",
+                     "q" #?(:clj "a b"
+                            :cljs "a+b")}
                     (silk/decode-query "q=a+b&encoded=a%2Bb")))
     (spec/it "keeps the last value for a repeated key"
       (spec/should= {"q" "last"} (silk/decode-query "q=first&q=last")))
@@ -50,25 +50,25 @@
       (spec/should= (silk/encode-query {}) "")))
   (spec/context "parsing"
     (spec/it "parses urls"
-      (spec/should= (silk/map->URL {:path ["a"]
+      (spec/should= (silk/map->URL {:path ["a"],
                                     :query {}})
                     (silk/url "/a"))
-      (spec/should= (silk/map->URL {:path ["a"]
+      (spec/should= (silk/map->URL {:path ["a"],
                                     :query {}})
                     (silk/url "/a?"))
-      (spec/should= (silk/map->URL {:path ["a"]
+      (spec/should= (silk/map->URL {:path ["a"],
                                     :query {"b" "c"}})
                     (silk/url "/a?b=c"))
-      (spec/should= (silk/map->URL {:query {"b" "c"}
-                                    :path []})
+      (spec/should= (silk/map->URL {:path [],
+                                    :query {"b" "c"}})
                     (silk/url "?b=c"))))
   (spec/context "toString"
     (spec/it "Encodes urls"
       (spec/should= "/users?q=foo"
-                    (.toString (silk/map->URL {:path ["users"]
+                    (.toString (silk/map->URL {:path ["users"],
                                                :query {"q" "foo"}})))
       (spec/should= "/users"
-                    (.toString (silk/map->URL {:path ["users"]
+                    (.toString (silk/map->URL {:path ["users"],
                                                :query {"q" nil}}))))))
 
 ;;;; Pattern ;;;;
@@ -103,12 +103,12 @@
     (spec/it "matches successfully"
       (spec/should= {} (silk/match {} {}))
       (spec/should= {} (silk/match {"foo" "bar"} {"foo" "bar"}))
-      (spec/should= {:bar "bar"
-                     :b "bloop"}
-                    (silk/match {"foo" :bar
-                                 "a" :b}
-                      {"foo" "bar"
-                       "a" "bloop"})))
+      (spec/should= {:b "bloop",
+                     :bar "bar"}
+                    (silk/match {"a" :b,
+                                 "foo" :bar}
+                      {"a" "bloop",
+                       "foo" "bar"})))
     (spec/it "matches unsuccessfully"
       (spec/should-be-nil (silk/match {"foo" :bar} {"not-foo" "blah"}))))
   (spec/context "silk/regex"
@@ -180,7 +180,7 @@
                                           (silk/int :answer)
                                           "bar")
                       "foo42bar"))
-      (spec/should= {:id 42
+      (spec/should= {:id 42,
                      :this "j"}
                     (silk/match (silk/cat "user-"
                                           (silk/int :id)
@@ -188,7 +188,7 @@
                                           (silk/? :this {:this "that"})
                                           "s")
                       "user-42-fredjs"))
-      (spec/should= {:id 42
+      (spec/should= {:id 42,
                      :this "that"}
                     (silk/match (silk/cat "user-"
                                           (silk/int :id)
@@ -298,9 +298,9 @@
     (spec/it "unmatches successfully"
       (spec/should= (silk/map->URL {:query {"a" "c"}})
                     (silk/unmatch @routes
-                                  {:domkm.silk/name :id3
-                                   :b "c"}))
-      (spec/should= (silk/map->URL {:path ["test"]
+                                  {:b "c",
+                                   :domkm.silk/name :id3}))
+      (spec/should= (silk/map->URL {:path ["test"],
                                     :query {"q" nil}})
                     (silk/unmatch @routes {:domkm.silk/name :id6})))
     (spec/it "unmatches unsuccessfully"

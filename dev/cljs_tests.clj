@@ -8,8 +8,8 @@
                    (= (.getCanonicalFile source-file)
                       (.getCanonicalFile (io/file resource))))
       (throw (ex-info (str source-file " does not resolve as " ns)
-                      {:file source-file
-                       :namespace ns
+                      {:file source-file,
+                       :namespace ns,
                        :resource resource})))
     ns))
 
@@ -20,9 +20,9 @@
                  sort
                  vec)]
   (assert (seq specs) "No ClojureScript spec namespaces found under spec/")
-  (build/build {:main runner
-                :target :nodejs
-                :optimizations :none
-                :output-dir "target/cljs-tests"
-                :output-to "target/cljs-tests.js"
-                :preloads specs}))
+  (build/build {:main runner,
+                :optimizations :none,
+                :output-dir "target/cljs-tests",
+                :output-to "target/cljs-tests.js",
+                :preloads specs,
+                :target :nodejs}))

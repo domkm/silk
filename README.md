@@ -221,12 +221,11 @@ Put shared specs in `.cljc` files under `spec/`. Both suites discover them autom
 
 ### Formatting
 
-Run these commands from the repository root. CI runs the same check with the
-project's pinned zprint version. The formatter ignores user zprint settings.
+Run these commands from the repository root:
 
 ```sh
-clojure -Srepro -M:fmt fix
-clojure -Srepro -M:fmt check
+clojure -Srepro -M:fmt -fw
+clojure -Srepro -M:fmt -fc
 ```
 
 ### License

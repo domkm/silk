@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '24'
       - name: Check formatting
-        run: clojure -Srepro -M:fmt check
+        run: clojure -Srepro -M:fmt -fc
       - name: Test Clojure
         run: clojure -M:test:clj
       - name: Test ClojureScript

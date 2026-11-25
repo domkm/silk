@@ -11,11 +11,11 @@
            (request :get "http://github.com/domkm/silk/pulls?q=awesome"))
           (spec/context "serve/request-map->URL"
             (spec/with-all url
-                           (silk/url {:scheme "http"
-                                      :host ["com" "github"]
-                                      :port "80"
-                                      :path ["domkm" "silk" "pulls"]
-                                      :query {"q" "awesome"}}))
+                           (silk/url {:host ["com" "github"],
+                                      :path ["domkm" "silk" "pulls"],
+                                      :port "80",
+                                      :query {"q" "awesome"},
+                                      :scheme "http"}))
             (spec/it "parses a ring request and created a URL"
               (spec/should= (silk/url (merge @req @url))
                             (serve/request-map->URL @req))))
@@ -37,8 +37,8 @@
                               {:route-name [[:username :project "pulls"]]}
                               (constantly identity)))
               (spec/it "associates params into request"
-                (spec/should= {:username "domkm"
-                               :project "silk"}
+                (spec/should= {:project "silk",
+                               :username "domkm"}
                               (-> @req
                                   (@ring-handler)
                                   :params

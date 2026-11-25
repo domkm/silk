@@ -6,16 +6,16 @@
 
 
 #?(:clj (defn request-map->URL
-          [{:keys [scheme server-name server-port uri query-string]
-            :as req}]
-          (->> {:scheme (name scheme)
-                :host (-> server-name
+          [{:as req,
+            :keys [scheme server-name server-port uri query-string]}]
+          (->> {:host (-> server-name
                           (str/split #"\.")
                           reverse
-                          vec)
-                :port (str server-port)
-                :path (silk/decode-path uri)
-                :query (silk/decode-query query-string)}
+                          vec),
+                :path (silk/decode-path uri),
+                :port (str server-port),
+                :query (silk/decode-query query-string),
+                :scheme (name scheme)}
                (merge req)
                silk/url)))
 

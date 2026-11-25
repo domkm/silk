@@ -72,7 +72,7 @@
         (string? x) (let [[p q] (str/split x #"\?")]
                       (url {:path (-> p
                                       str
-                                      decode-path)
+                                      decode-path),
                             :query (-> q
                                        str
                                        decode-query)}))
@@ -104,14 +104,14 @@
 
 (defn match-validator
   [ptrn]
-  {:pre [(pattern? ptrn)]
-   :post [(fn? %)]}
+  {:post [(fn? %)],
+   :pre [(pattern? ptrn)]}
   (optional-value-is-allowed (-match-validator ptrn)))
 
 (defn unmatch-validators
   [ptrn]
-  {:pre [(pattern? ptrn)]
-   :post [(map? %) (every? some? (keys %)) (every? fn? (vals %))]}
+  {:post [(map? %) (every? some? (keys %)) (every? fn? (vals %))],
+   :pre [(pattern? ptrn)]}
   (-unmatch-validators ptrn))
 
 (defn match-valid? [ptrn x] (boolean ((match-validator ptrn) x)))
@@ -125,14 +125,14 @@
 
 (defn match
   [ptrn x]
-  {:pre [(pattern? ptrn)]
-   :post [(or (nil? %) (unmatch-valid? ptrn %))]}
+  {:post [(or (nil? %) (unmatch-valid? ptrn %))],
+   :pre [(pattern? ptrn)]}
   (when (match-valid? ptrn x) (-match ptrn x)))
 
 (defn unmatch
   [ptrn params]
-  {:pre [(unmatch-valid? ptrn params)]
-   :post [(match-valid? ptrn %)]}
+  {:post [(match-valid? ptrn %)],
+   :pre [(unmatch-valid? ptrn params)]}
   (-unmatch ptrn params))
 
 (defn create-default
@@ -225,24 +225,24 @@
 (defn regex
   ([k re] (regex k re {}))
   ([k re
-    {:keys [deserialize serialize validate]
-     :or {deserialize identity
-          serialize #(if (vector? %) (nth % 0) %)
+    {:keys [deserialize serialize validate],
+     :or {deserialize identity,
+          serialize #(if (vector? %) (nth % 0) %),
           validate #(when-let [s (if (vector? %) (first %) %)]
                       (and (string? s) (re-find re s)))}}]
    {:pre [(some? k)]}
-   (map->RegexPattern {:param-key k
-                       :regex re
-                       :deserialize deserialize
-                       :serialize serialize
+   (map->RegexPattern {:deserialize deserialize,
+                       :param-key k,
+                       :regex re,
+                       :serialize serialize,
                        :validate validate})))
 
 (defn bool
   [k]
   (regex k
          #"true|false"
-         {:deserialize #(= "true" %)
-          :serialize str
+         {:deserialize #(= "true" %),
+          :serialize str,
           :validate #?(:clj #(instance? Boolean %)
                        :cljs #(identical? js/Boolean (type %)))}))
 
@@ -251,8 +251,8 @@
   (regex k
          #"\d+"
          {:deserialize #?(:clj #(Integer/parseInt %)
-                          :cljs #(js/parseInt % 10))
-          :serialize str
+                          :cljs #(js/parseInt % 10)),
+          :serialize str,
           :validate integer?}))
 
 (defn uuid
@@ -260,8 +260,8 @@
   (regex k
          #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
          {:deserialize #?(:clj #(UUID/fromString %)
-                          :cljs ->UUID)
-          :serialize str
+                          :cljs ->UUID),
+          :serialize str,
           :validate #(instance? UUID %)}))
 
 (defn cat
@@ -359,8 +359,8 @@
                   (assoc params ::routes this ::url u)))
               routes-seq)))
     (-unmatch [this
-               {nm ::name
-                :as params}]
+               {:as params,
+                nm ::name}]
       (assert (and (some? nm) (contains? routes-map nm)))
       (unmatch (get routes-map nm) (dissoc params ::routes ::url)))
     (-match-validator [_] map?)
