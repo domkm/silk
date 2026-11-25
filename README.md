@@ -199,6 +199,18 @@ Unmatching is almost as easy.
 ;=> "/pages/about"
 ```
 
+Use `silk/?` to declare an optional query parameter. `depart` omits it when you do not supply a value.
+
+```clojure
+(def login-routes
+  (silk/routes [[:login [["login"] {"returnUrl" (silk/? :return-url)}]]]))
+
+(silk/depart login-routes :login)
+;=> "/login"
+(silk/depart login-routes :login {:return-url "/somewhere"})
+;=> "/login?returnUrl=%2Fsomewhere"
+```
+
 As with `domkm.silk/arrive`, you can provide a handler function.
 
 ```clojure
