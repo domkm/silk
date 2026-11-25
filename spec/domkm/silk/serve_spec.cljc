@@ -56,6 +56,20 @@
                                @req)))))))
 
 (spec/describe "serve/RequestMethodPattern"
+  (spec/it "matches a POST route with optional query parameters"
+    (let [routes (silk/routes
+                  {:api-data [["api"]
+                              {"limit" (silk/? (silk/int :limit) {:limit 100}),
+                               "offset" (silk/? (silk/int :offset) {:offset 0})}
+                              (serve/POST)]})
+          url {:path ["api"],
+               :query {}}]
+      (spec/should-be-nil (silk/match routes url))
+      (spec/should= {:limit 100,
+                     :offset 0}
+                    (select-keys (silk/match routes
+                                   (assoc url :request-method :post))
+                                 [:limit :offset]))))
   (spec/it "matches successfully"
     (spec/should= {} (silk/match serve/GET :get))
     (spec/should= {} (silk/match (serve/GET) {:request-method :get}))
