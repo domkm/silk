@@ -219,6 +219,15 @@ clojure -M:test:cljs && node target/cljs-tests.js
 
 Put shared specs in `.cljc` files under `spec/`. Both suites discover them automatically.
 
+### Formatting
+
+Run these commands from the repository root:
+
+```sh
+clojure -Srepro -M:fmt -fw
+clojure -Srepro -M:fmt -fc
+```
+
 ### License
 
 Copyright &copy; 2014 Dom Kiva-Meyer

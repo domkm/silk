@@ -1,9 +1,14 @@
-{:paths ["src"]
- :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
- :aliases
- {:test {:extra-paths ["spec"]
-         :extra-deps {speclj/speclj {:mvn/version "3.13.1"}}}
-  :clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
-        :main-opts ["-m" "speclj.main" "spec"]}
-  :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.145"}}
-         :main-opts ["dev/cljs_tests.clj"]}}}
+{:aliases
+ {:clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}},
+        :main-opts ["-m" "speclj.main" "spec"]},
+  :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.145"}},
+         :main-opts ["dev/cljs_tests.clj"]},
+  :fmt
+  {:extra-deps {zprint/zprint {:mvn/version "1.3.0"}},
+   :main-opts
+   ["-m" "zprint.main"
+    "{:cwd-zprintrc? true :files {:glob \"{deps.edn,src/**.clj,src/**.clj[cs],src/**.edn,spec/**.clj,spec/**.clj[cs],spec/**.edn,dev/**.clj,dev/**.clj[cs],dev/**.edn}\"}}"]},
+  :test {:extra-deps {speclj/speclj {:mvn/version "3.13.1"}},
+         :extra-paths ["spec"]}},
+ :deps {org.clojure/clojure {:mvn/version "1.12.7"}},
+ :paths ["src"]}

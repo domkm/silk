@@ -1,0 +1,15 @@
+{:style :community
+ :width 80
+ :map {:sort? true,
+       :sort-in-code? true,
+       :comma? true,
+       :force-nl? true}
+ :set {:sort? true,
+       :sort-in-code? true}
+ :reader-cond {:sort? true,
+               :sort-in-code? true}
+ :comment {:wrap? false,
+           :smart-wrap? false}
+ :fn-map {"spec/describe" :arg1-force-nl-body,
+          "spec/context" :arg1-force-nl-body,
+          "spec/it" :arg1-force-nl-body}}
