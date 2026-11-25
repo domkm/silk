@@ -1,9 +1,12 @@
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.7"}}
- :aliases
- {:test {:extra-paths ["spec"]
-         :extra-deps {speclj/speclj {:mvn/version "3.13.1"}}}
-  :clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
-        :main-opts ["-m" "speclj.main" "spec"]}
-  :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.12.145"}}
-         :main-opts ["dev/cljs_tests.clj"]}}}
+ :aliases {:test {:extra-paths ["spec"]
+                  :extra-deps {speclj/speclj {:mvn/version "3.13.1"}}}
+           :clj {:extra-deps {ring/ring-mock {:mvn/version "0.6.2"}}
+                 :main-opts ["-m" "speclj.main" "spec"]}
+           :cljs {:extra-deps {org.clojure/clojurescript {:mvn/version
+                                                          "1.12.145"}}
+                  :main-opts ["dev/cljs_tests.clj"]}
+           :fmt {:extra-deps {zprint/zprint {:mvn/version "1.3.0"}}
+                 :extra-paths ["dev"]
+                 :main-opts ["-m" "domkm.silk.format"]}}}

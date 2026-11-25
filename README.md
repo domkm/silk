@@ -219,6 +219,16 @@ clojure -M:test:cljs && node target/cljs-tests.js
 
 Put shared specs in `.cljc` files under `spec/`. Both suites discover them automatically.
 
+### Formatting
+
+Run these commands from the repository root. CI runs the same check with the
+project's pinned zprint version. The formatter ignores user zprint settings.
+
+```sh
+clojure -Srepro -M:fmt fix
+clojure -Srepro -M:fmt check
+```
+
 ### License
 
 Copyright &copy; 2014 Dom Kiva-Meyer
