@@ -208,11 +208,16 @@ As with `domkm.silk/arrive`, you can provide a handler function.
 
 __Go forth and route!__
 
-### Status
+### Tests
 
-Silk is very much a work-in-progress. Everything is subject to change.
+Install [Clojure CLI](https://clojure.org/guides/install_clojure), JDK 25, and Node.js 24 LTS. CI runs the specs on Clojure 1.12 and ClojureScript 1.12:
 
-If you have suggestions, please do share them.
+```sh
+clojure -M:test:clj
+clojure -M:test:cljs && node target/cljs-tests.js
+```
+
+Put shared specs in `.cljc` files under `spec/`. Both suites discover them automatically.
 
 ### License
 

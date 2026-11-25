@@ -1,14 +1,11 @@
 (ns domkm.silk.serve-spec
   (:require [domkm.silk :as silk]
             [domkm.silk.serve :as serve]
-            #+clj [ring.mock.request :refer [request]]
-            [speclj.core :as spec #+cljs :include-macros #+cljs true])
-  #+clj
-  (:import [clojure.lang ExceptionInfo]))
+            #?(:clj [ring.mock.request :refer [request]])
+            [speclj.core :as spec #?@(:cljs [:include-macros true])]))
 
 
-#+clj
-(spec/describe
+#?(:clj (spec/describe
  "ring functionality"
  (spec/with-all req (request :get "http://github.com/domkm/silk/pulls?q=awesome"))
  (spec/context
@@ -29,7 +26,11 @@
    (spec/it
     "calls get-handler with nil route"
     (spec/should= @req
-                  ((serve/ring-handler {:never-route {:path ["nope"]}} #(fnil identity %)) @req))))
+                  ((serve/ring-handler {:never-route {:path ["nope"]}} {nil identity}) @req)))
+   (spec/it
+    "throws instead of returning a default response"
+    (spec/should-throw NullPointerException
+                       ((serve/ring-handler {:never-route {:path ["nope"]}}) @req))))
   (spec/context
    "match and `get-handler` is provided"
    (spec/with-all ring-handler (serve/ring-handler
@@ -53,7 +54,7 @@
     (spec/should= "silk"
                   ((serve/ring-handler {#(get-in % [:params :project])
                                         [[:username :project "pulls"]]})
-                   @req))))))
+                    @req)))))))
 
 (spec/describe
  "serve/RequestMethodPattern"

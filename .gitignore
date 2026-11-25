@@ -1,6 +1,6 @@
 *.class
 *.jar
-/.lein-*
+/.cpcache/
 /.nrepl-*
 /checkouts
 /classes
