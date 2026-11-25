@@ -46,7 +46,15 @@
                 (spec/should= @req
                               (-> @req
                                   (@ring-handler)
-                                  (dissoc :params)))))
+                                  (dissoc :params))))
+              (spec/it "merges request and route params"
+                (let [req (assoc @req
+                                 :params
+                                 {:project "middleware",
+                                  "project" "form"})
+                      params (:params (@ring-handler req))]
+                  (spec/should= "form" (get params "project"))
+                  (spec/should= "silk" (:project params)))))
             (spec/context "match and no `get-handler` provided"
               (spec/it "calls the route name"
                 (spec/should= "silk"

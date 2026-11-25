@@ -28,7 +28,8 @@
   * converts the request map to a URL
   * associates the request map into the URL
   * matches routes against the new URL
-  * when a match is found, associates params into request and passes that to a route handler function"
+  * when a match is found, merges route params into request params, with route
+    params taking precedence, and passes the request to the route handler"
        ([routes] (ring-handler routes identity))
        ([routes get-handler]
         (let [rtes (silk/routes routes)]
@@ -37,7 +38,7 @@
               ((-> params
                    :domkm.silk/name
                    get-handler)
-               (assoc req :params params))
+               (update req :params merge params))
               ((get-handler nil) req)))))))
 
 
