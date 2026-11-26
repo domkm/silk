@@ -211,12 +211,19 @@ Use `silk/?` to declare an optional query parameter. `depart` omits it when you 
 ;=> "/login?returnUrl=%2Fsomewhere"
 ```
 
-As with `domkm.silk/arrive`, you can provide a handler function.
+Pass a handler as the fourth argument to `depart` to modify the generated URL.
+The handler receives a `URL` record. For example, it can add a query parameter
+that the route does not declare:
 
 ```clojure
-(silk/depart all-routes :other-page {:title "about"} clojure.string/upper-case)
-;=> "/PAGES/ABOUT"
+(silk/depart login-routes :login {:return-url "/somewhere"}
+  (fn [url] (str (update url :query assoc "source" "email"))))
+;=> "/login?returnUrl=%2Fsomewhere&source=email"
 ```
+
+`arrive` ignores undeclared query keys when checking a route, but an added key
+can make an earlier route match instead. For example, an earlier `/login` route
+that requires `source=email` would match the URL above before `:login`.
 
 __Go forth and route!__
 
