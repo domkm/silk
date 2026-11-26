@@ -330,8 +330,10 @@
 (deftype Route [name pattern]
   Pattern
     (-match [this -url]
-      (when-let [params (match pattern (url -url))]
-        (assoc params ::name name ::pattern pattern)))
+      (let [u (url -url)]
+        (when-let [params (match pattern
+                            (if (nil? (:query u)) (assoc u :query {}) u))]
+          (assoc params ::name name ::pattern pattern))))
     (-unmatch [this params]
       (->> (dissoc params ::name ::pattern)
            (unmatch pattern)

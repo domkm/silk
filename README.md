@@ -151,7 +151,8 @@ If you don't care about the match order, you can create routes with a map.
                 :other-page [["pages" :title]]}))
 ```
 
-Routes can be constrained by request methods.
+Routes can be constrained by request methods. For route matching, an omitted or
+`nil` `:query` is treated as `{}`. Optional query parameters can still supply defaults.
 
 ```clojure
 (def api-routes
