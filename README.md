@@ -200,12 +200,31 @@ Unmatching is almost as easy.
 ;=> "/pages/about"
 ```
 
-As with `domkm.silk/arrive`, you can provide a handler function.
+Use `silk/?` to declare an optional query parameter. `depart` omits it when you do not supply a value.
 
 ```clojure
-(silk/depart all-routes :other-page {:title "about"} clojure.string/upper-case)
-;=> "/PAGES/ABOUT"
+(def login-routes
+  (silk/routes [[:login [["login"] {"returnUrl" (silk/? :return-url)}]]]))
+
+(silk/depart login-routes :login)
+;=> "/login"
+(silk/depart login-routes :login {:return-url "/somewhere"})
+;=> "/login?returnUrl=%2Fsomewhere"
 ```
+
+Pass a handler as the fourth argument to `depart` to modify the generated URL.
+The handler receives a `URL` record. For example, it can add a query parameter
+that the route does not declare:
+
+```clojure
+(silk/depart login-routes :login {:return-url "/somewhere"}
+  (fn [url] (str (update url :query assoc "source" "email"))))
+;=> "/login?returnUrl=%2Fsomewhere&source=email"
+```
+
+`arrive` ignores undeclared query keys when checking a route, but an added key
+can make an earlier route match instead. For example, an earlier `/login` route
+that requires `source=email` would match the URL above before `:login`.
 
 __Go forth and route!__
 
