@@ -44,8 +44,17 @@
                      "q" #?(:clj "a b"
                             :cljs "a+b")}
                     (silk/decode-query "q=a+b&encoded=a%2Bb")))
-    (spec/it "keeps the last value for a repeated key"
-      (spec/should= {"q" "last"} (silk/decode-query "q=first&q=last")))
+    (spec/it "keeps repeated values in order"
+      (spec/should= {"bar" "Linda",
+                     "foo" ["Greg" "John" "Greg"]}
+                    (silk/decode-query "foo=Greg&bar=Linda&foo=John&foo=Greg")))
+    (spec/it "encodes each vector item as a separate query pair"
+      (let [query {"q" ["a&b=c" ""]}
+            encoded (silk/encode-query (assoc query "omitted" []))]
+        (spec/should= "q=a%26b%3Dc&q=" encoded)
+        (spec/should= query (silk/decode-query encoded))))
+    (spec/it "decodes blank values and splits on the first equals sign"
+      (spec/should= {"q" ["" "" "a=b"]} (silk/decode-query "q&q=&q=a=b")))
     (spec/it "empty map produces no query-string"
       (spec/should= (silk/encode-query {}) "")))
   (spec/context "parsing"
@@ -69,7 +78,10 @@
                                                :query {"q" "foo"}})))
       (spec/should= "/users"
                     (.toString (silk/map->URL {:path ["users"],
-                                               :query {"q" nil}}))))))
+                                               :query {"q" nil}})))
+      (spec/should= "/users"
+                    (str (silk/map->URL {:path ["users"],
+                                         :query {"q" []}}))))))
 
 ;;;; Pattern ;;;;
 
@@ -325,3 +337,60 @@
       (spec/should= "/users" (silk/depart @routes :id5))
       (spec/should= "/users?q=bar" (silk/depart @routes :id5 {:q "bar"}))
       (spec/should= "/test" (silk/depart @routes :id6)))))
+
+(spec/describe "repeated query parameters"
+  (spec/with-all routes
+                 (silk/routes [[:tags [["tags"] {"tag" :tags}]]
+                               [:items [["items"] {"id" (silk/int :id)}]]]))
+  (spec/it "passes strings and vectors through plain captures"
+    (spec/should= "clojure" (silk/arrive @routes "/tags?tag=clojure" :tags))
+    (let [tags ["clojure" "cljs"]
+          url (silk/depart @routes :tags {:tags tags})]
+      (spec/should= "/tags?tag=clojure&tag=cljs" url)
+      (spec/should= tags (silk/arrive @routes url :tags))))
+  (spec/it "matches and generates typed values in order"
+    (doseq [[id path] [[2 "/items?id=2"] [[2 7 2] "/items?id=2&id=7&id=2"]]]
+      (spec/should= id (silk/arrive @routes path :id))
+      (spec/should= path (silk/depart @routes :items {:id id})))
+    (spec/should= "/items?id=2" (silk/depart @routes :items {:id [2]})))
+  (spec/it "requires at least one value and validates every value"
+    (spec/should-be-nil (silk/arrive @routes "/items"))
+    (spec/should-be-nil (silk/arrive @routes "/items?id=2&id=nope"))
+    (doseq [id [nil [] [2 "7"]]]
+      (spec/should-throw AssertionError (silk/depart @routes :items {:id id}))))
+  (spec/it "preserves optional query defaults and accepts supplied repeats"
+    (let [routes (silk/routes
+                  [[:items [["items"] {"id" (silk/? (silk/int :id))}]]
+                   [:default
+                    [["default"] {"id" (silk/? (silk/int :id) {:id 42})}]]])]
+      (spec/should= :items (silk/arrive routes "/items" ::silk/name))
+      (spec/should= "/items" (silk/depart routes :items))
+      (spec/should= 42 (silk/arrive routes "/default" :id))
+      (spec/should= "/default?id=42" (silk/depart routes :default))
+      (spec/should= [2 7] (silk/arrive routes "/default?id=2&id=7" :id))
+      (spec/should= "/default?id=2&id=7"
+                    (silk/depart routes :default {:id [2 7]}))))
+  (spec/it "round-trips regex captures with and without groups"
+    (doseq [[pattern x path]
+            [[(silk/regex :q #"[a-z]+") ["abc" "def"] "/?q=abc&q=def"]
+             [(silk/regex :q #"([a-z]+)") ["abc" "abc"] "/?q=abc"]
+             [(silk/regex :q #"([a-z]+)") [["abc" "abc"] ["def" "def"]]
+              "/?q=abc&q=def"]]]
+      (let [routes (silk/routes [[:root [[] {"q" pattern}]]])]
+        (spec/should= x (silk/arrive routes path :q))
+        (spec/should= path (silk/depart routes :root {:q x})))))
+  (spec/it "rejects an invalid value when generating a repeated regex capture"
+    (let [routes (silk/routes [[:root [[] {"q" (silk/regex :q #"[a-z]+")}]]])]
+      (spec/should-throw AssertionError
+                         (silk/depart routes :root {:q ["abc" "123"]}))))
+  (spec/it "preserves positional vector query patterns"
+    (let [routes (silk/routes [[:root [[] {"q" ["fixed" :q]}]]])]
+      (spec/should= "abc" (silk/arrive routes "/?q=fixed&q=abc" :q))
+      (spec/should= "/?q=fixed&q=abc" (silk/depart routes :root {:q "abc"}))))
+  (spec/it "does not lift path or standalone captures"
+    (let [ptrn (silk/int :id)
+          routes (silk/routes [[:item [["items" ptrn]]]])]
+      (spec/should-be-nil (silk/match ptrn ["2" "7"]))
+      (spec/should-be-nil (silk/arrive routes {:path ["items" ["2" "7"]]}))
+      (spec/should-throw AssertionError
+                         (silk/depart routes :item {:id [2 7]})))))

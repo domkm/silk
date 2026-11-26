@@ -226,6 +226,35 @@ that the route does not declare:
 can make an earlier route match instead. For example, an earlier `/login` route
 that requires `source=email` would match the URL above before `:login`.
 
+##### Repeated query parameters
+
+A query key that occurs once has a string value. A key that repeats has a vector
+of strings in URL order. Both `?tag` and `?tag=` supply an empty string for `tag`.
+A plain capture like `{"tag" :tag}` keeps that value as-is. Query captures using
+`silk/int`, `silk/bool`, `silk/uuid`, or `silk/regex` apply the pattern to each value.
+They capture one result for a single occurrence, or a vector of results for repeats.
+If any value fails the pattern, the route does not match. Use `silk/?` to allow
+an absent key.
+
+```clojure
+(def item-routes
+  (silk/routes [[:items [["items"] {"id" (silk/int :id)}]]]))
+
+(silk/arrive item-routes "/items?id=2" :id)
+;=> 2
+(silk/arrive item-routes "/items?id=2&id=7" :id)
+;=> [2 7]
+(silk/arrive item-routes "/items?id=2&id=nope")
+;=> nil
+(silk/depart item-routes :items {:id [2 7]})
+;=> "/items?id=2&id=7"
+```
+
+`depart` writes one query pair per repeated value, in order. A one-element vector
+writes one pair, so `arrive` reads it back as a single value. An empty vector
+omits a plain capture but is invalid for a typed capture. If a regex groups its
+captures into a vector for one value, use a vector of those vectors for repeats.
+
 __Go forth and route!__
 
 ### Tests

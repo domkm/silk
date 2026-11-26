@@ -39,20 +39,29 @@
        (mapv decode)))
 
 (defn encode-query
-  "Takes a query map.
-  Returns a string of query pairs encoded and joined."
+  "Encodes a query map. A vector value emits one pair per element, in order."
   [query]
-  (str/join "&" (for [[k v] (sort query)] (str (encode k) "=" (encode v)))))
+  (str/join "&"
+            (for [[k v] (sort query)
+                  :let [k (encode k)]
+                  value (if (vector? v) v [v])]
+              (str k "=" (encode value)))))
 
 (defn decode-query
-  "Takes a query string.
-  Returns a map of decoded query pairs."
+  "Decodes a query string. Repeated keys have vector values in input order."
   [^String s]
   (if-not (str/blank? s)
     (->> (str/split s #"[&;]")
          (reduce (fn [q pair]
-                   (let [[k v] (map decode (str/split pair #"="))]
-                     (assoc! q k v)))
+                   (let [[k v] (str/split pair #"=" 2)
+                         k (decode k)
+                         v (decode (or v ""))
+                         prev (get q k)]
+                     (assoc! q
+                             k
+                             (cond (nil? prev) v
+                                   (vector? prev) (conj prev v)
+                                   :else [prev v]))))
                  (transient {}))
          persistent!)
     {}))
@@ -61,8 +70,8 @@
   Object
     (toString [this]
       (str (encode-path path)
-           (let [query (remove (comp nil? val) query)]
-             (if (seq query) (str "?" (encode-query query)))))))
+           (let [query (encode-query (remove (comp nil? val) query))]
+             (when (seq query) (str "?" query))))))
 
 (defn url? [x] (instance? URL x))
 
@@ -302,41 +311,92 @@
        (-match-validator [_] string?)
        (-unmatch-validators [_] validator))))
 
+(deftype ^:private OptionalPattern [ptrn default-params]
+  Pattern
+    (-match [_ that]
+      (if (nil? that)
+        (or default-params (create-default ptrn))
+        (match ptrn that)))
+    (-unmatch [_ params]
+      (let [r (unmatch ptrn
+                       (merge-with (fn [pval dval] (if (nil? pval) dval pval))
+                                   params
+                                   (or default-params
+                                       (create-default
+                                        ptrn
+                                        ::optional-key-has-no-value))))]
+        (if-not (= ::optional-key-has-no-value r) r)))
+    (-match-validator [_] (some-fn nil? (match-validator ptrn)))
+    (-unmatch-validators [_] {}))
+
 (defn ?
   [ptrn & [default-params]]
   {:pre [(pattern? ptrn)
          (or (not default-params) (unmatch ptrn default-params))]}
-  (reify
-   Pattern
-     (-match [_ that]
-       (if (nil? that)
-         (or default-params (create-default ptrn))
-         (match ptrn that)))
-     (-unmatch [_ params]
-       (let [r (unmatch ptrn
-                        (merge-with (fn [pval dval] (if (nil? pval) dval pval))
-                                    params
-                                    (or default-params
-                                        (create-default
-                                         ptrn
-                                         ::optional-key-has-no-value))))]
-         (if-not (= ::optional-key-has-no-value r) r)))
-     (-match-validator [_] (some-fn nil? (match-validator ptrn)))
-     (-unmatch-validators [_] {})))
+  (->OptionalPattern ptrn default-params))
 
 
 ;;;; Route Pattern ;;;;
 
-(deftype Route [name pattern]
+(defn- repeated-values? [valid x] (and (vector? x) (seq x) (every? valid x)))
+
+(defn- query-regex-pattern
+  [{:as ptrn,
+    :keys [param-key validate]}]
+  (reify
+   Pattern
+     (-match [_ x]
+       (if (vector? x)
+         (when-let [values (reduce (fn [acc v]
+                                     (if-let [params (match ptrn v)]
+                                       (conj acc (get params param-key))
+                                       (reduced nil)))
+                                   []
+                                   x)]
+           {param-key values})
+         (match ptrn x)))
+     (-unmatch [_ params]
+       (let [x (get params param-key)]
+         (if (vector? x)
+           (let [single (when (validate x) (unmatch ptrn params))]
+             ;; One regex match may itself capture a vector of groups.
+             (if (and single (vector? (get (match ptrn single) param-key)))
+               single
+               (mapv #(unmatch ptrn (assoc params param-key %)) x)))
+           (unmatch ptrn params))))
+     (-match-validator [_] #(or (string? %) (repeated-values? string? %)))
+     (-unmatch-validators [_]
+       {param-key (optional-value-is-allowed
+                   #(or (validate %) (repeated-values? validate %)))})
+     (-create-default [_ v] (create-default ptrn v))))
+
+(defn- query-value-pattern
+  [ptrn]
+  (cond (instance? RegexPattern ptrn) (query-regex-pattern ptrn)
+        (instance? OptionalPattern ptrn) (->OptionalPattern
+                                          (query-value-pattern (.-ptrn ptrn))
+                                          (.-default-params ptrn))
+        :else ptrn))
+
+(defn- with-query-captures
+  [ptrn]
+  (let [query (:query ptrn)]
+    (if (and (not (record? ptrn))
+             (or (instance? PersistentArrayMap query)
+                 (instance? PersistentHashMap query)))
+      (assoc ptrn :query (update-vals query query-value-pattern))
+      ptrn)))
+
+(deftype Route [name pattern compiled-pattern]
   Pattern
     (-match [this -url]
       (let [u (url -url)]
-        (when-let [params (match pattern
+        (when-let [params (match compiled-pattern
                             (if (nil? (:query u)) (assoc u :query {}) u))]
           (assoc params ::name name ::pattern pattern))))
     (-unmatch [this params]
       (->> (dissoc params ::name ::pattern)
-           (unmatch pattern)
+           (unmatch compiled-pattern)
            url))
     (-match-validator [_] map?)
     (-unmatch-validators [_] {})
@@ -344,6 +404,10 @@
       :cljs [IMapEntry (-key [_] name) (-val [_] pattern)]))
 
 (defn route? [x] (instance? Route x))
+
+(defn ->Route
+  [name pattern]
+  (Route. name pattern (with-query-captures pattern)))
 
 (defn route
   [x]

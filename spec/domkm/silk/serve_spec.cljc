@@ -63,6 +63,14 @@
                                  [[:username :project "pulls"]]})
                                @req)))))))
 
+#?(:clj (spec/describe "repeated Ring query parameters"
+          (spec/it "passes repeated typed values to the route handler"
+            (let [handler (serve/ring-handler {:items [["items"]
+                                                       {"id" (silk/int :id)}]}
+                                              (constantly :params))
+                  req (request :get "http://example.test/items?id=2&id=7")]
+              (spec/should= [2 7] (:id (handler req)))))))
+
 (spec/describe "serve/RequestMethodPattern"
   (spec/it "matches a POST route with optional query parameters"
     (let [routes (silk/routes
