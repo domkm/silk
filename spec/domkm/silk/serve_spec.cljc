@@ -63,13 +63,15 @@
                                "offset" (silk/? (silk/int :offset) {:offset 0})}
                               (serve/POST)]})
           url {:path ["api"],
-               :query {}}]
-      (spec/should-be-nil (silk/match routes url))
-      (spec/should= {:limit 100,
-                     :offset 0}
-                    (select-keys (silk/match routes
-                                   (assoc url :request-method :post))
-                                 [:limit :offset]))))
+               :request-method :post}]
+      (spec/should-be-nil (silk/match routes (dissoc url :request-method)))
+      (spec/should-be-nil (silk/match routes (assoc url :query false)))
+      (doseq [input [url (assoc url :query nil) (assoc url :query {})
+                     (silk/url url)]]
+        (spec/should= {:limit 100,
+                       :offset 0}
+                      (select-keys (silk/match routes input)
+                                   [:limit :offset])))))
   (spec/it "matches successfully"
     (spec/should= {} (silk/match serve/GET :get))
     (spec/should= {} (silk/match (serve/GET) {:request-method :get}))

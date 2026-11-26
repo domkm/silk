@@ -151,8 +151,8 @@ If you don't care about the match order, you can create routes with a map.
                 :other-page [["pages" :title]]}))
 ```
 
-Routes can be constrained by request methods. When matching a map directly against
-a route with a query pattern, supply `:query {}` if there are no query parameters.
+Routes can be constrained by request methods. For route matching, an omitted or
+`nil` `:query` is treated as `{}`. Optional query parameters can still supply defaults.
 
 ```clojure
 (def api-routes
@@ -160,9 +160,9 @@ a route with a query pattern, supply `:query {}` if there are no query parameter
                                     "offset" (silk/? (silk/int :offset) {:offset 0})} (serve/POST)]}))
 
 
-(silk/match api-routes {:path ["api"] :query {}})
+(silk/match api-routes {:path ["api"]})
 ;=> nil
-(silk/match api-routes {:path ["api"] :query {} :request-method :post})
+(silk/match api-routes {:path ["api"] :request-method :post})
 ;=> {:limit 100, :offset 0, :domkm.silk/name :api-data, ...}
 ```
 
