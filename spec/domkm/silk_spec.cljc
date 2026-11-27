@@ -398,6 +398,17 @@
       (spec/should= [2 7] (silk/arrive routes "/default?id=2&id=7" :id))
       (spec/should= "/default?id=2&id=7"
                     (silk/depart routes :default {:id [2 7]}))))
+  (spec/it "prepares typed captures in whole-query optional maps"
+    (let [query (silk/? {"id" (silk/? (silk/int :id) {:id 1})} {:id 42})]
+      (doseq [[pattern default-url] [[query "/?id=42"]
+                                     [(silk/? query {:id 43}) "/?id=43"]]]
+        (let [routes (silk/routes [[:root [[] pattern]]])]
+          (doseq [[id url] [[2 "/?id=2"] [[2 7] "/?id=2&id=7"]]]
+            (spec/should= id (silk/arrive routes url :id))
+            (spec/should= url (silk/depart routes :root {:id id})))
+          (spec/should= default-url (silk/depart routes :root))
+          (spec/should= 1 (silk/arrive routes "/" :id))
+          (spec/should= 1 (silk/arrive routes {:path []} :id))))))
   (spec/it "round-trips regex captures with and without groups"
     (doseq [[pattern x path]
             [[(silk/regex :q #"[a-z]+") ["abc" "def"] "/?q=abc&q=def"]

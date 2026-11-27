@@ -400,22 +400,26 @@
        (-unmatch-validators [_] {})
        (-create-default [_ v] (create-default ptrn v)))))
 
-(defn- query-value-pattern
-  [ptrn]
-  (cond (instance? RegexPattern ptrn) (query-regex-pattern ptrn)
-        (instance? OptionalPattern ptrn) (->OptionalPattern
-                                          (query-value-pattern (.-ptrn ptrn))
-                                          (.-default-params ptrn))
+(defn- prepare-query-pattern
+  [ptrn context]
+  (cond (instance? OptionalPattern ptrn)
+        (->OptionalPattern (prepare-query-pattern (.-ptrn ptrn) context)
+                           (.-default-params ptrn))
+        (and (= context :value) (instance? RegexPattern ptrn))
+        (query-regex-pattern ptrn)
+        (and (= context :query)
+             (or (instance? PersistentArrayMap ptrn)
+                 (instance? PersistentHashMap ptrn)))
+        (update-vals ptrn #(prepare-query-pattern % :value))
         :else ptrn))
 
 (defn- with-query-captures
   [ptrn]
-  (let [query (:query ptrn)]
-    (if (and (not (record? ptrn))
-             (or (instance? PersistentArrayMap query)
-                 (instance? PersistentHashMap query)))
-      (assoc ptrn :query (update-vals query query-value-pattern))
-      ptrn)))
+  (if (record? ptrn)
+    ptrn
+    (let [query (:query ptrn)
+          prepared (prepare-query-pattern query :query)]
+      (if (identical? query prepared) ptrn (assoc ptrn :query prepared)))))
 
 (deftype Route [name pattern compiled-pattern]
   Pattern
