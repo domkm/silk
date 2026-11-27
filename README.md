@@ -251,11 +251,16 @@ an absent key.
 ```
 
 `depart` writes one query pair per repeated value, in order. A one-element vector
-writes one pair, so `arrive` reads it back as a single value. An empty vector
-omits a plain capture but is invalid for a typed capture. For a regex without
-capture groups, a vector means repeats. For a regex with capture groups, a flat
-vector means one value. Use a vector of capture vectors for repeats. `depart`
-uses these shapes for custom regex codecs too.
+writes one pair when used for repeats, so `arrive` reads it back as a single
+value. An empty vector omits a plain capture and is invalid as a list of typed
+repeats. For hand-built parameters, a vector means repeats for a regex without
+capture groups. For a regex with capture groups, a flat vector means one value;
+use a vector of capture vectors for repeats.
+
+A custom deserializer can give one value and repeated values the same vector
+shape. In that case, `arrive` records the distinction in the vector's metadata
+for `depart` with the same codec. If you rebuild the vector without that
+metadata, `depart` uses the hand-built rules above.
 
 __Go forth and route!__
 

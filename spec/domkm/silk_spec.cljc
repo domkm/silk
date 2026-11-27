@@ -1,5 +1,6 @@
 (ns domkm.silk-spec
-  (:require [domkm.silk :as silk]
+  (:require [clojure.string :as str]
+            [domkm.silk :as silk]
             [speclj.core :as spec #?@(:cljs [:include-macros true])]))
 
 
@@ -428,6 +429,51 @@
         (spec/should= url (silk/depart routes :root {:q q})))
       (spec/should-throw AssertionError
                          (silk/depart routes :root {:q [single "def"]}))))
+  (spec/it "round-trips grouped regex matches deserialized to strings"
+    (let [pattern (silk/regex :q
+                              #"([a-z]+)"
+                              {:deserialize first,
+                               :serialize identity,
+                               :validate #(.startsWith ^String % "a")})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])]
+      (doseq [[value path] [["abc" "/?q=abc"] [["abc" "ade"] "/?q=abc&q=ade"]]]
+        (let [q (silk/arrive routes path :q)]
+          (spec/should= value q)
+          (spec/should= path (silk/depart routes :root {:q q}))))))
+  (spec/it "round-trips ungrouped regex matches deserialized to vectors"
+    (let [pattern (silk/regex :q
+                              #"[a-z]+-[a-z]+"
+                              {:deserialize #(with-meta (str/split % #"-" 2)
+                                                        {:codec true}),
+                               :serialize #(str/join "-" %),
+                               :validate #(and (vector? %)
+                                               (= 2 (count %))
+                                               (every? string? %)
+                                               (= {:codec true} (meta %)))})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])]
+      (doseq [[value path] [[["abc" "ade"] "/?q=abc-ade"]
+                            [[["abc" "ade"] ["foo" "bar"]]
+                             "/?q=abc-ade&q=foo-bar"]]]
+        (let [q (silk/arrive routes path :q)]
+          (spec/should= value q)
+          (spec/should= path (silk/depart routes :root {:q q}))))))
+  (spec/it "distinguishes equal vectors from one query value and repeats"
+    (let [pattern
+          (silk/regex
+           :q
+           #"[a-z]+(?:-[a-z]+)?"
+           {:deserialize #(if (str/includes? % "-") (str/split % #"-" 2) %),
+            :serialize #(if (vector? %) (str/join "-" %) %),
+            :validate #(or (string? %) (and (vector? %) (every? string? %)))})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])
+          single (silk/arrive routes "/?q=abc-ade" :q)
+          repeated (silk/arrive routes "/?q=abc&q=ade" :q)]
+      (spec/should= ["abc" "ade"] single)
+      (spec/should= single repeated)
+      (spec/should= "/?q=abc-ade" (silk/depart routes :root {:q single}))
+      (spec/should= "/?q=abc&q=ade" (silk/depart routes :root {:q repeated}))
+      (spec/should= "/?q=abc&q=ade"
+                    (silk/depart routes :root {:q ["abc" "ade"]}))))
   (spec/it "accepts a single grouped capture with caller-supplied group slots"
     (let [pattern (silk/regex :q #"foo(.*)")
           routes (silk/routes [[:root [[] {"q" pattern}]]])]

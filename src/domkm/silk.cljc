@@ -348,10 +348,30 @@
              ;; The empty alternative matches without using the capture groups.
              (< 1 (.-length (.exec probe ""))))))
 
+(def ^:private query-capture-shape-key (gensym))
+
+(defn- without-query-capture-shape
+  [x]
+  (let [m (meta x)]
+    (if-let [[_ _ had-meta?] (get m query-capture-shape-key)]
+      (let [m (dissoc m query-capture-shape-key)]
+        (with-meta x (if had-meta? m (not-empty m))))
+      x)))
+
 (defn- query-regex-pattern
   [{:as ptrn,
     :keys [param-key regex]}]
-  (let [grouped? (regex-has-groups? regex)]
+  (let [grouped? (regex-has-groups? regex)
+        repeats-by-shape? #(and (vector? %)
+                                (or (not grouped?) (empty? %) (some vector? %)))
+        mark-shape (fn [x repeats?]
+                     ;; Custom deserializers can change the shape of a capture.
+                     (if (= repeats? (boolean (repeats-by-shape? x)))
+                       x
+                       (vary-meta x
+                                  assoc
+                                  query-capture-shape-key
+                                  [ptrn repeats? (some? (meta x))])))]
     (reify
      Pattern
        (-match [_ x]
@@ -362,13 +382,19 @@
                                          (reduced nil)))
                                      []
                                      x)]
-             {param-key values})
-           (match ptrn x)))
+             {param-key (mark-shape values true)})
+           (some-> (match ptrn x)
+                   (update param-key mark-shape false))))
        (-unmatch [_ params]
-         (let [x (get params param-key)]
-           (if (and (vector? x) (or (not grouped?) (empty? x) (some vector? x)))
-             (mapv #(unmatch ptrn (assoc params param-key %)) x)
-             (unmatch ptrn params))))
+         (let [x (get params param-key)
+               [origin repeats?] (get (meta x) query-capture-shape-key)
+               unmatch-one #(unmatch ptrn
+                                     (assoc params
+                                            param-key
+                                            (without-query-capture-shape %)))]
+           (if (if (identical? ptrn origin) repeats? (repeats-by-shape? x))
+             (mapv unmatch-one x)
+             (unmatch-one x))))
        (-match-validator [_] #(or (string? %) (repeated-values? string? %)))
        ;; The scalar pattern validates each value on match and unmatch.
        (-unmatch-validators [_] {})
