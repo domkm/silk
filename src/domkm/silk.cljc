@@ -312,6 +312,21 @@
        (-match-validator [_] string?)
        (-unmatch-validators [_] validator))))
 
+(def ^:private prepared-query-map-key (gensym))
+(def ^:private query-default-keys (gensym))
+
+(declare unwrap-optional-pattern)
+
+(defn- mark-applied-query-defaults
+  [merged params defaults]
+  ;; Keep the default values intact for other patterns that use the same params.
+  (let [applied (keep (fn [[k v]]
+                        (when (and (vector? v) (nil? (get params k))) k))
+                      defaults)]
+    (if (seq applied)
+      (vary-meta merged update query-default-keys (fnil into #{}) applied)
+      merged)))
+
 (deftype ^:private OptionalPattern [ptrn default-params]
   Pattern
     (-match [_ that]
@@ -319,13 +334,17 @@
         (or default-params (create-default ptrn))
         (match ptrn that)))
     (-unmatch [_ params]
-      (let [r (unmatch ptrn
-                       (merge-with (fn [pval dval] (if (nil? pval) dval pval))
-                                   params
-                                   (or default-params
-                                       (create-default
-                                        ptrn
-                                        ::optional-key-has-no-value))))]
+      (let [defaults (or default-params
+                         (create-default ptrn ::optional-key-has-no-value))
+            merged (merge-with (fn [pval dval] (if (nil? pval) dval pval))
+                               params
+                               defaults)
+            r (unmatch ptrn
+                       (if (and (map? default-params)
+                                (get (meta (unwrap-optional-pattern ptrn))
+                                     prepared-query-map-key))
+                         (mark-applied-query-defaults merged params defaults)
+                         merged))]
         (if-not (= ::optional-key-has-no-value r) r)))
     (-match-validator [_] (some-fn nil? (match-validator ptrn)))
     (-unmatch-validators [_] {}))
@@ -358,6 +377,10 @@
         (with-meta x (if had-meta? m (not-empty m))))
       x)))
 
+(defn- mark-query-capture-shape
+  [ptrn x repeats?]
+  (vary-meta x assoc query-capture-shape-key [ptrn repeats? (some? (meta x))]))
+
 (defn- query-regex-pattern
   [{:as ptrn,
     :keys [param-key regex]}]
@@ -368,10 +391,7 @@
                      ;; Custom deserializers can change the shape of a capture.
                      (if (= repeats? (boolean (repeats-by-shape? x)))
                        x
-                       (vary-meta x
-                                  assoc
-                                  query-capture-shape-key
-                                  [ptrn repeats? (some? (meta x))])))]
+                       (mark-query-capture-shape ptrn x repeats?)))]
     (reify
      Pattern
        (-match [_ x]
@@ -392,7 +412,11 @@
                                      (assoc params
                                             param-key
                                             (without-query-capture-shape %)))]
-           (if (if (identical? ptrn origin) repeats? (repeats-by-shape? x))
+           (if (and (not (contains? (get (meta params) query-default-keys)
+                                    param-key))
+                    (if (identical? ptrn origin)
+                      repeats?
+                      (repeats-by-shape? x)))
              (mapv unmatch-one x)
              (unmatch-one x))))
        (-match-validator [_] #(or (string? %) (repeated-values? string? %)))
@@ -400,17 +424,40 @@
        (-unmatch-validators [_] {})
        (-create-default [_ v] (create-default ptrn v)))))
 
+(defn- unwrap-optional-pattern
+  [ptrn]
+  (if (instance? OptionalPattern ptrn) (recur (.-ptrn ptrn)) ptrn))
+
+(defn- prepare-query-value-defaults
+  [{:as ptrn,
+    :keys [param-key]} defaults]
+  (let [x (get defaults param-key)]
+    (if (and (map? defaults) (vector? x))
+      (assoc
+       defaults
+       param-key
+       (mark-query-capture-shape ptrn (without-query-capture-shape x) false))
+      defaults)))
+
 (defn- prepare-query-pattern
   [ptrn context]
   (cond (instance? OptionalPattern ptrn)
-        (->OptionalPattern (prepare-query-pattern (.-ptrn ptrn) context)
-                           (.-default-params ptrn))
+        (let [wrapped (.-ptrn ptrn)
+              defaults (.-default-params ptrn)
+              leaf (when (= context :value) (unwrap-optional-pattern wrapped))]
+          (->OptionalPattern (prepare-query-pattern wrapped context)
+                             (if (instance? RegexPattern leaf)
+                               (prepare-query-value-defaults leaf defaults)
+                               defaults)))
         (and (= context :value) (instance? RegexPattern ptrn))
         (query-regex-pattern ptrn)
         (and (= context :query)
              (or (instance? PersistentArrayMap ptrn)
                  (instance? PersistentHashMap ptrn)))
-        (update-vals ptrn #(prepare-query-pattern % :value))
+        (vary-meta (update-vals ptrn #(prepare-query-pattern % :value))
+                   assoc
+                   prepared-query-map-key
+                   true)
         :else ptrn))
 
 (defn- with-query-captures

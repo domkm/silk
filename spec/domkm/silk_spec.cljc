@@ -409,6 +409,41 @@
           (spec/should= default-url (silk/depart routes :root))
           (spec/should= 1 (silk/arrive routes "/" :id))
           (spec/should= 1 (silk/arrive routes {:path []} :id))))))
+  (spec/it "uses a vector-valued optional key default as one value"
+    (let [pattern (silk/regex :q
+                              #"[a-z]+"
+                              {:deserialize vector,
+                               :serialize first,
+                               :validate vector?})
+          defaults {:q ["abc"]}
+          routes (silk/routes [[:root [[] {"q" (silk/? pattern defaults)}]]])]
+      (spec/should= "/?q=abc" (silk/depart routes :root))
+      (let [q (silk/arrive routes "/" :q)]
+        (spec/should= ["abc"] q)
+        (spec/should= "/?q=abc" (silk/depart routes :root {:q q})))
+      (spec/should= "/?q=def&q=ghi"
+                    (silk/depart routes :root {:q [["def"] ["ghi"]]}))
+      (spec/should-throw AssertionError (silk/depart routes :root defaults))))
+  (spec/it "keeps whole-query vector defaults and their codec metadata"
+    (let [codec-meta {:codec true}
+          pattern (silk/regex
+                   :q
+                   #"[a-z]+"
+                   {:deserialize #(with-meta [%] codec-meta),
+                    :serialize #(when (= codec-meta (meta %)) (first %)),
+                    :validate #(and (vector? %) (= codec-meta (meta %)))})
+          default (with-meta ["abc"] codec-meta)
+          routes (silk/routes [[:root [[] (silk/? {"q" pattern} {:q default})]]
+                               [:shared
+                                [[]
+                                 (silk/? {"q" pattern,
+                                          "r" (silk/cat pattern)}
+                                         {:q default})]]])]
+      (spec/should= "/?q=abc" (silk/depart routes :root))
+      (spec/should= "/?q=abc&r=abc" (silk/depart routes :shared))
+      (spec/should-be-nil (silk/arrive routes {:path []}))
+      (spec/should= "/?q=abc&q=abc"
+                    (silk/depart routes :root {:q [default default]}))))
   (spec/it "round-trips regex captures with and without groups"
     (doseq [[pattern x path]
             [[(silk/regex :q #"[a-z]+") ["abc" "def"] "/?q=abc&q=def"]
