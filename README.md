@@ -226,6 +226,45 @@ that the route does not declare:
 can make an earlier route match instead. For example, an earlier `/login` route
 that requires `source=email` would match the URL above before `:login`.
 
+##### Repeated query parameters
+
+A query key that occurs once has a string value. A key that repeats has a vector
+of strings in URL order. Both `?tag` and `?tag=` supply an empty string for `tag`.
+A plain capture like `{"tag" :tag}` keeps that value as-is. Query captures using
+`silk/int`, `silk/bool`, `silk/uuid`, or `silk/regex` apply the pattern to each value.
+They capture one result for a single occurrence, or a vector of results for repeats.
+If any value fails the pattern, the route does not match. Use `silk/?` to allow
+an absent key.
+
+```clojure
+(def item-routes
+  (silk/routes [[:items [["items"] {"id" (silk/int :id)}]]]))
+
+(silk/arrive item-routes "/items?id=2" :id)
+;=> 2
+(silk/arrive item-routes "/items?id=2&id=7" :id)
+;=> [2 7]
+(silk/arrive item-routes "/items?id=2&id=nope")
+;=> nil
+(silk/depart item-routes :items {:id [2 7]})
+;=> "/items?id=2&id=7"
+```
+
+Silk calls `str` on each raw query vector element before URL encoding, so
+`{"id" ["2" nil]}` encodes as `id=2&id=`.
+
+`depart` writes one query pair per repeated value, in order. A one-element vector
+writes one pair when used for repeats, so `arrive` reads it back as a single
+value. An empty vector omits a plain capture and is invalid as a list of typed
+repeats. For hand-built parameters, a vector means repeats for a regex without
+capture groups. For a regex with capture groups, a flat vector means one value;
+use a vector of capture vectors for repeats.
+
+A custom deserializer can give one value and repeated values the same vector
+shape. In that case, `arrive` records the distinction in the vector's metadata
+for `depart` with the same codec. If you rebuild the vector without that
+metadata, `depart` uses the hand-built rules above.
+
 __Go forth and route!__
 
 ### Tests
