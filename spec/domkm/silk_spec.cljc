@@ -168,6 +168,14 @@
       (spec/should= {:id 42} (silk/match (silk/int :id) "42")))
     (spec/it "matches unsuccessfully"
       (spec/should-be-nil (silk/match (silk/int :id) "a42")))
+    (spec/it "accepts the platform maximum and rejects overflow"
+      (let [pattern (silk/int :id)
+            max-id #?(:clj Long/MAX_VALUE
+                      :cljs js/Number.MAX_SAFE_INTEGER)
+            overflow #?(:clj "9223372036854775808"
+                        :cljs "9007199254740992")]
+        (spec/should= {:id max-id} (silk/match pattern (str max-id)))
+        (spec/should-be-nil (silk/match pattern overflow))))
     (spec/it "unmatches successfully"
       (spec/should= "42" (silk/unmatch (silk/int :id) {:id 42})))
     (spec/it "unmatches unsuccessfully"
@@ -363,6 +371,11 @@
       (spec/should= id (silk/arrive @routes path :id))
       (spec/should= path (silk/depart @routes :items {:id id})))
     (spec/should= "/items?id=2" (silk/depart @routes :items {:id [2]})))
+  (spec/it "matches large repeated integers and rejects overflow"
+    (spec/should= [2 2147483648]
+                  (silk/arrive @routes "/items?id=2&id=2147483648" :id))
+    (spec/should-be-nil (silk/arrive @routes
+                                     "/items?id=2&id=9223372036854775808")))
   (spec/it "requires at least one value and validates every value"
     (spec/should-be-nil (silk/arrive @routes "/items"))
     (spec/should-be-nil (silk/arrive @routes "/items?id=2&id=nope"))

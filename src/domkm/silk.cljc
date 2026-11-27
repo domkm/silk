@@ -260,8 +260,7 @@
   [k]
   (regex k
          #"\d+"
-         {:deserialize #?(:clj #(Integer/parseInt %)
-                          :cljs #(js/parseInt % 10)),
+         {:deserialize parse-long,
           :serialize str,
           :validate integer?}))
 
