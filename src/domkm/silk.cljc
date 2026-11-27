@@ -52,6 +52,7 @@
   [^String s]
   (if-not (str/blank? s)
     (->> (str/split s #"[&;]")
+         (filter seq)
          (reduce (fn [q pair]
                    (let [[k v] (str/split pair #"=" 2)
                          k (decode k)
@@ -78,7 +79,7 @@
 (defn url
   [x]
   (cond (url? x) x
-        (string? x) (let [[p q] (str/split x #"\?")]
+        (string? x) (let [[p q] (str/split x #"\?" 2)]
                       (url {:path (-> p
                                       str
                                       decode-path),
@@ -238,7 +239,7 @@
      :or {deserialize identity,
           serialize #(if (vector? %) (nth % 0) %),
           validate #(when-let [s (if (vector? %) (first %) %)]
-                      (and (string? s) (re-find re s)))}}]
+                      (and (string? s) (re-matches re s)))}}]
    {:pre [(some? k)]}
    (map->RegexPattern {:deserialize deserialize,
                        :param-key k,
@@ -340,35 +341,38 @@
 
 (defn- repeated-values? [valid x] (and (vector? x) (seq x) (every? valid x)))
 
+(defn- regex-has-groups?
+  [re]
+  #?(:clj (pos? (.groupCount (.matcher ^java.util.regex.Pattern re "")))
+     :cljs (let [probe (js/RegExp. (str "|" (.-source re)) (.-flags re))]
+             ;; The empty alternative matches without using the capture groups.
+             (< 1 (.-length (.exec probe ""))))))
+
 (defn- query-regex-pattern
   [{:as ptrn,
-    :keys [param-key validate]}]
-  (reify
-   Pattern
-     (-match [_ x]
-       (if (vector? x)
-         (when-let [values (reduce (fn [acc v]
-                                     (if-let [params (match ptrn v)]
-                                       (conj acc (get params param-key))
-                                       (reduced nil)))
-                                   []
-                                   x)]
-           {param-key values})
-         (match ptrn x)))
-     (-unmatch [_ params]
-       (let [x (get params param-key)]
+    :keys [param-key regex]}]
+  (let [grouped? (regex-has-groups? regex)]
+    (reify
+     Pattern
+       (-match [_ x]
          (if (vector? x)
-           (let [single (when (validate x) (unmatch ptrn params))]
-             ;; One regex match may itself capture a vector of groups.
-             (if (and single (vector? (get (match ptrn single) param-key)))
-               single
-               (mapv #(unmatch ptrn (assoc params param-key %)) x)))
-           (unmatch ptrn params))))
-     (-match-validator [_] #(or (string? %) (repeated-values? string? %)))
-     (-unmatch-validators [_]
-       {param-key (optional-value-is-allowed
-                   #(or (validate %) (repeated-values? validate %)))})
-     (-create-default [_ v] (create-default ptrn v))))
+           (when-let [values (reduce (fn [acc v]
+                                       (if-let [params (match ptrn v)]
+                                         (conj acc (get params param-key))
+                                         (reduced nil)))
+                                     []
+                                     x)]
+             {param-key values})
+           (match ptrn x)))
+       (-unmatch [_ params]
+         (let [x (get params param-key)]
+           (if (and (vector? x) (or (not grouped?) (empty? x) (some vector? x)))
+             (mapv #(unmatch ptrn (assoc params param-key %)) x)
+             (unmatch ptrn params))))
+       (-match-validator [_] #(or (string? %) (repeated-values? string? %)))
+       ;; The scalar pattern validates each value on match and unmatch.
+       (-unmatch-validators [_] {})
+       (-create-default [_ v] (create-default ptrn v)))))
 
 (defn- query-value-pattern
   [ptrn]
@@ -405,13 +409,13 @@
 
 (defn route? [x] (instance? Route x))
 
-(defn ->Route
-  [name pattern]
-  (Route. name pattern (with-query-captures pattern)))
-
 (defn route
   [x]
-  (if (route? x) x (let [[nm ptrn] x] (->Route nm (url-pattern ptrn)))))
+  (if (route? x)
+    x
+    (let [[nm ptrn] x
+          pattern (url-pattern ptrn)]
+      (->Route nm pattern (with-query-captures pattern)))))
 
 
 ;;;; Routes Pattern ;;;;

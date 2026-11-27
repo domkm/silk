@@ -55,6 +55,11 @@
         (spec/should= query (silk/decode-query encoded))))
     (spec/it "decodes blank values and splits on the first equals sign"
       (spec/should= {"q" ["" "" "a=b"]} (silk/decode-query "q&q=&q=a=b")))
+    (spec/it "ignores empty pairs but keeps explicit empty and bare keys"
+      (spec/should= {} (silk/decode-query "&;&&;"))
+      (spec/should= {"" "value",
+                     "tag" ""}
+                    (silk/decode-query ";&=value&&tag;&")))
     (spec/it "empty map produces no query-string"
       (spec/should= (silk/encode-query {}) "")))
   (spec/context "parsing"
@@ -70,7 +75,11 @@
                     (silk/url "/a?b=c"))
       (spec/should= (silk/map->URL {:path [],
                                     :query {"b" "c"}})
-                    (silk/url "?b=c"))))
+                    (silk/url "?b=c")))
+    (spec/it "splits the path from the query at the first question mark"
+      (spec/should= (silk/map->URL {:path ["a"],
+                                    :query {"q" ["a?b" "?c??"]}})
+                    (silk/url "/a?q=a?b&q=?c??"))))
   (spec/context "toString"
     (spec/it "Encodes urls"
       (spec/should= "/users?q=foo"
@@ -374,15 +383,68 @@
     (doseq [[pattern x path]
             [[(silk/regex :q #"[a-z]+") ["abc" "def"] "/?q=abc&q=def"]
              [(silk/regex :q #"([a-z]+)") ["abc" "abc"] "/?q=abc"]
+             [(silk/regex :q #"(abc)(def)?") ["abc" "abc" nil] "/?q=abc"]
              [(silk/regex :q #"([a-z]+)") [["abc" "abc"] ["def" "def"]]
               "/?q=abc&q=def"]]]
       (let [routes (silk/routes [[:root [[] {"q" pattern}]]])]
         (spec/should= x (silk/arrive routes path :q))
         (spec/should= path (silk/depart routes :root {:q x})))))
-  (spec/it "rejects an invalid value when generating a repeated regex capture"
+  (spec/it "uses whole-string regex validation for generation by default"
     (let [routes (silk/routes [[:root [[] {"q" (silk/regex :q #"[a-z]+")}]]])]
+      (spec/should-be-nil (silk/arrive routes "/?q=def123"))
+      (spec/should-be-nil (silk/arrive routes "/?q=abc&q=def123"))
+      (doseq [q ["def123" ["abc" "def123"]]]
+        (spec/should-throw AssertionError (silk/depart routes :root {:q q})))))
+  (spec/it "uses custom regex hooks on each query value"
+    (let [decoded (atom [])
+          pattern (silk/regex :q
+                              #"(?:[a-z]+)"
+                              {:deserialize (fn [s]
+                                              (swap! decoded conj s)
+                                              (.toUpperCase ^String s)),
+                               :serialize #(.toLowerCase ^String %),
+                               :validate #(.startsWith ^String % "A")})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])]
+      (doseq [[q url] [["ABC" "/?q=abc"] [["ABC" "ADE"] "/?q=abc&q=ade"]]]
+        (spec/should= q (silk/arrive routes url :q))
+        (spec/should= url (silk/depart routes :root {:q q})))
+      (spec/should= ["abc" "abc" "ade"] @decoded)
       (spec/should-throw AssertionError
-                         (silk/depart routes :root {:q ["abc" "123"]}))))
+                         (silk/depart routes :root {:q ["ABC" "DEF"]}))))
+  (spec/it "lets a custom validator override default generation validation"
+    (let [pattern (silk/regex :q #"[a-z]+" {:validate string?})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])]
+      (spec/should= "/?q=def123" (silk/depart routes :root {:q "def123"}))))
+  (spec/it "uses custom grouped regex hooks on one capture vector at a time"
+    (let [pattern (silk/regex :q
+                              #"([a-z]+)(?:-([a-z]+))?"
+                              {:serialize (fn [[s]] (.toLowerCase ^String s)),
+                               :validate vector?})
+          routes (silk/routes [[:root [[] {"q" pattern}]]])
+          single ["abc" "abc" nil]
+          repeated [single ["def-ghi" "def" "ghi"]]]
+      (doseq [[q url] [[single "/?q=abc"] [repeated "/?q=abc&q=def-ghi"]]]
+        (spec/should= q (silk/arrive routes url :q))
+        (spec/should= url (silk/depart routes :root {:q q})))
+      (spec/should-throw AssertionError
+                         (silk/depart routes :root {:q [single "def"]}))))
+  (spec/it "accepts a single grouped capture with caller-supplied group slots"
+    (let [pattern (silk/regex :q #"foo(.*)")
+          routes (silk/routes [[:root [[] {"q" pattern}]]])]
+      (spec/should= "/?q=foobar"
+                    (silk/depart routes :root {:q ["foobar" "foo"]}))))
+  (spec/it "exposes the original route pattern"
+    (let [pattern {:path [],
+                   :query {"id" (silk/int :id)}}
+          route (silk/route [:root pattern])
+          routes (silk/routes [route])]
+      (spec/should= pattern (val route))
+      (spec/should= pattern (silk/arrive routes "/?id=2&id=7" ::silk/pattern))))
+  (spec/it "preserves literal query patterns"
+    (let [routes (silk/routes [[:root [[] {"q" "fixed"}]]])]
+      (spec/should= :root (silk/arrive routes "/?q=fixed" ::silk/name))
+      (spec/should= "/?q=fixed" (silk/depart routes :root))
+      (spec/should-be-nil (silk/arrive routes "/?q=fixed&q=fixed"))))
   (spec/it "preserves positional vector query patterns"
     (let [routes (silk/routes [[:root [[] {"q" ["fixed" :q]}]]])]
       (spec/should= "abc" (silk/arrive routes "/?q=fixed&q=abc" :q))
@@ -393,4 +455,12 @@
       (spec/should-be-nil (silk/match ptrn ["2" "7"]))
       (spec/should-be-nil (silk/arrive routes {:path ["items" ["2" "7"]]}))
       (spec/should-throw AssertionError
-                         (silk/depart routes :item {:id [2 7]})))))
+                         (silk/depart routes :item {:id [2 7]}))))
+  (spec/it "keeps custom standalone vector captures as single values"
+    (let [pattern (silk/regex :q
+                              #"[a-z]+"
+                              {:deserialize vector,
+                               :serialize first,
+                               :validate vector?})]
+      (spec/should= {:q ["abc"]} (silk/match pattern "abc"))
+      (spec/should= "abc" (silk/unmatch pattern {:q ["abc"]})))))

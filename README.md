@@ -252,8 +252,10 @@ an absent key.
 
 `depart` writes one query pair per repeated value, in order. A one-element vector
 writes one pair, so `arrive` reads it back as a single value. An empty vector
-omits a plain capture but is invalid for a typed capture. If a regex groups its
-captures into a vector for one value, use a vector of those vectors for repeats.
+omits a plain capture but is invalid for a typed capture. For a regex without
+capture groups, a vector means repeats. For a regex with capture groups, a flat
+vector means one value. Use a vector of capture vectors for repeats. `depart`
+uses these shapes for custom regex codecs too.
 
 __Go forth and route!__
 
