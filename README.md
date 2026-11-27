@@ -250,6 +250,9 @@ an absent key.
 ;=> "/items?id=2&id=7"
 ```
 
+Silk calls `str` on each raw query vector element before URL encoding, so
+`{"id" ["2" nil]}` encodes as `id=2&id=`.
+
 `depart` writes one query pair per repeated value, in order. A one-element vector
 writes one pair when used for repeats, so `arrive` reads it back as a single
 value. An empty vector omits a plain capture and is invalid as a list of typed

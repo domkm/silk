@@ -54,6 +54,11 @@
             encoded (silk/encode-query (assoc query "omitted" []))]
         (spec/should= "q=a%26b%3Dc&q=" encoded)
         (spec/should= query (silk/decode-query encoded))))
+    (spec/it "coerces raw query vector elements to strings"
+      (spec/should= "id=2&id=7" (silk/encode-query {"id" [2 7]}))
+      (let [encoded (silk/encode-query {"id" ["2" nil]})]
+        (spec/should= "id=2&id=" encoded)
+        (spec/should= {"id" ["2" ""]} (silk/decode-query encoded))))
     (spec/it "decodes blank values and splits on the first equals sign"
       (spec/should= {"q" ["" "" "a=b"]} (silk/decode-query "q&q=&q=a=b")))
     (spec/it "ignores empty pairs but keeps explicit empty and bare keys"

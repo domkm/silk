@@ -39,12 +39,13 @@
        (mapv decode)))
 
 (defn encode-query
-  "Encodes a query map. A vector value emits one pair per element, in order."
+  "Encodes a query map. A vector value emits one pair per element, in order.
+  Each vector element is converted with `str` before URL encoding."
   [query]
   (str/join "&"
             (for [[k v] (sort query)
                   :let [k (encode k)]
-                  value (if (vector? v) v [v])]
+                  value (if (vector? v) (map str v) [v])]
               (str k "=" (encode value)))))
 
 (defn decode-query
